@@ -16,31 +16,31 @@ colors:
   muted-copy: "#52625f"
 typography:
   display:
-    fontFamily: "Geist, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
+    fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
     fontSize: "clamp(2.5rem, 6vw, 5rem)"
     fontWeight: 560
     lineHeight: 0.96
     letterSpacing: "-0.025em"
   headline:
-    fontFamily: "Geist, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
+    fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
     fontSize: "clamp(2rem, 4vw, 3.5rem)"
     fontWeight: 560
     lineHeight: 1.04
     letterSpacing: "-0.018em"
   title:
-    fontFamily: "Geist, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
+    fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
     fontSize: "1.25rem"
     fontWeight: 600
     lineHeight: 1.25
     letterSpacing: "0"
   body:
-    fontFamily: "Geist, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
+    fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
     fontSize: "1rem"
     fontWeight: 400
     lineHeight: 1.65
     letterSpacing: "0"
   label:
-    fontFamily: "Geist, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
+    fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
     fontSize: "0.875rem"
     fontWeight: 600
     lineHeight: 1.2
@@ -140,11 +140,15 @@ The palette is restrained and clinical with a deep teal accent, cool clean surfa
 
 ## 3. Typography
 
-**Display Font:** Geist, system UI fallback  
-**Body Font:** Geist, system UI fallback  
-**Label Font:** Geist, system UI fallback
+**Display Font:** Project system UI stack
+
+**Body Font:** Project system UI stack
+
+**Label Font:** Project system UI stack
 
 **Character:** One precise sans family keeps the system calm, modern, and operational. The distinction comes from hierarchy, spacing, and copy discipline, not ornamental font pairing.
+
+For the MVP, use the system stack already declared in `app/globals.css`. Do not add `next/font/google`, remote font requests, or font files. A locally hosted, licensed font may replace the stack in a later task after it is added to the repository intentionally.
 
 ### Hierarchy
 - **Display** (560, `clamp(2.5rem, 6vw, 5rem)`, 0.96 line-height): Hero headlines and major conversion claims only. Use `text-wrap: balance`; do not exceed `-0.025em` tracking.

@@ -10,19 +10,15 @@ web
 
 ## Users
 
-The primary audience is clinic owners, doctors, and clinic managers in Brazil who are evaluating whether to modernize an existing clinic website. They are usually non-technical, do not have internal IT, and need a path that feels safe, credible, and low effort.
+The primary audience is the non-technical clinic decision-maker in a small or mid-sized Brazilian clinic: usually a physician-owner, physician partner, clinic owner, or clinic manager who can approve budget and authorize website or domain changes. They care about trust, safety, professional image, low effort, predictable execution, and avoiding downtime. The product does not speak to developers, designers, or marketers.
 
-They care about trust, professional credibility, approval before publication, no site downtime, and not having to manage DNS, hosting, SSL, backups, developers, or launch details.
-
-The secondary audience is the founder/operator using the internal product surfaces to analyze clinics, generate before/after previews, manage leads, monitor approvals, and track modernization projects.
+The founder or operator is a secondary user. For the MVP, they use a simple internal admin surface to manage mocked clinics, previews, lead status, and project status. Operational depth remains secondary to the commercial experience.
 
 ## Product Purpose
 
-clinic-atual is a B2B platform and service for modernizing clinic websites. It helps clinics move from an outdated or weak web presence to a modern, credible site through a first-impression audit, a before/after preview, a specialized clinic website template, approval before publication, and done-for-you domain, hosting, SSL, backup, and launch support.
+Clínica Atual modernizes clinic websites through a preview-first service. A clinic can inspect a concrete demonstration of how its website could look, understand the proposed improvements, and approve the result before anything is published. Clínica Atual then handles the technical publication work, including domain, hosting, SSL, backup, and launch support.
 
-The first priority is converting qualified clinic leads through public surfaces: the landing page, audit/score page, before/after preview page, and offer page. Internal admin surfaces support the operator workflow: analyzed clinic lists, preview management, lead status, and project status.
-
-Success means a clinic decision-maker understands the improvement, trusts the process, sees the result before taking risk, and moves forward without feeling that they need technical knowledge.
+The MVP succeeds when the landing page, audit, and before-and-after preview make the offer credible enough for a qualified clinic decision-maker to request a preview. The priority order is landing-page conversion, preview evidence, audit clarity, trust and risk reversal, then internal admin usability.
 
 ## Positioning
 
@@ -30,38 +26,35 @@ Seu novo site de clínica, aprovado antes de ir ao ar.
 
 ## Conversion & proof
 
-- Primary CTA: request or view a clinic website modernization preview.
-- Secondary CTA: review the first-impression audit or understand the done-for-you process before committing.
-- The line a visitor remembers after 10 seconds: "Modernizamos o site da sua clínica, mostramos o resultado antes da publicação e cuidamos de toda a parte técnica."
-- Belief ladder: the current site is hurting first impressions; the modernization can be seen before publication; the process is controlled and safe; the clinic will not need to manage technical details; publication happens only after approval.
-- Proof on hand: to be added as case studies, before/after examples, audit scores, testimonials, or clinic launch outcomes become available.
+- Primary CTA: "Solicitar uma prévia do meu site."
+- Secondary CTA: "Ver exemplo de prévia."
+- Support option: "Falar pelo WhatsApp," presented below the main conversion path or after the preview rather than as the landing page's primary action.
+- Supporting message: "Modernizamos o site da sua clínica, mostramos o resultado antes da publicação e cuidamos de toda a parte técnica."
+- Belief ladder: the current site may convey a first impression below the clinic's real quality; the decision-maker can inspect a concrete alternative before deciding; nothing changes on the official site without approval; the clinic does not need to manage domain, hosting, SSL, or a technical team; requesting a preview is a simple, reversible, low-risk next step.
+- Proof on hand: fictional clinics explicitly identified as demonstrations, conceptual before-and-after previews, a demonstrative score, and a transparent audit and publication process. The MVP offers proof of process, not proof of commercial results.
+- Required demonstration notice: "Demonstração fictícia — nenhuma clínica real está sendo representada."
+- Unsupported claims are prohibited. Do not claim more patients, increased revenue, improved conversion, improved SEO, medical outcomes, or quantitative results. Real before-and-after examples, delivery times, testimonials, revision counts, publication experiences, and case studies may replace conceptual proof only after evidence exists.
 
 ## Brand Personality
 
-Calm, premium, trustworthy, medical-adjacent, precise, modern, and low-friction.
+Calm, precise, and trustworthy. Premium without ostentation, medical-adjacent without appearing hospital-like, modern without resembling a generic startup, and clear for non-technical people. The interface should communicate operational safety, control, professionalism, and a predictable process in which the current website is never placed at risk.
 
-The voice should feel serious and reassuring: clear enough for non-technical clinic decision-makers, precise enough to inspire confidence, and restrained enough to avoid agency-style hype. Portuguese copy should favor concrete process and risk reduction over buzzwords.
+Visual and interaction references include Stripe for clarity, hierarchy, trust, and finish; Linear for precision, rhythm, consistency, and lack of noise; and mature digital health products such as Doctolib for accessible confidence among non-technical users. These are quality references, not brands to copy literally.
 
 ## Anti-references
 
-This should not look or sound like a generic SaaS dashboard, an AI toy, an aggressive marketing agency, a website for one specific clinic, or a developer tool.
-
-Avoid loud purple or blue SaaS gradients, overused startup visuals, hype language, cheap template aesthetics, generic AI branding, and layouts dominated by nested cards. The experience should not imply that the clinic owner must understand technical infrastructure or manage developers.
+Avoid generic SaaS styling, purple or blue gradients, excessive cards, AI-tool aesthetics, aggressive marketing-agency language, cold hospital styling, generic medical templates with cliched stock photography, personality-free clinical white, and dark or overly technical dashboards. Do not use pressure, hype, or visual cues that imply unproven medical or commercial outcomes.
 
 ## Design Principles
 
-Make risk reduction visible. Every major surface should reinforce approval before publication, no downtime, and technical work handled for the clinic.
-
-Show the transformation before asking for trust. The before/after preview and audit score should carry more persuasive weight than abstract claims.
-
-Speak to clinic decision-makers, not technologists. Use plain Portuguese, concrete process language, and operational reassurance.
-
-Feel premium through restraint and precision. The interface should be modern and confident without startup excess, decorative noise, or template-like repetition.
-
-Keep the hybrid system coherent. Public conversion surfaces can have stronger brand expression, while internal admin surfaces should be denser and task-focused, but both should share a calm, medical-adjacent vocabulary.
+1. **Preview before persuasion.** Lead with a concrete demonstration of the clinic's possible future presentation instead of abstract service claims.
+2. **Make risk reversal visible.** Approval before publication, no unapproved changes, and handled technical work must appear near every consequential action.
+3. **Prove the process honestly.** Clearly label fictional demonstrations and conceptual scores, and never imply results that have not been measured.
+4. **Write for the decision-maker.** Use plain Brazilian Portuguese, concrete outcomes, and predictable next steps rather than technical or marketing jargon.
+5. **Keep operations subordinate to conversion.** The internal admin should be clear and efficient, but MVP effort belongs first to the landing, audit, and preview experience.
 
 ## Accessibility & Inclusion
 
-The platform should be usable by non-technical users on common desktop and mobile browsers. Prioritize clear contrast, readable Portuguese copy, obvious calls to action, predictable forms, keyboard-accessible controls, and reduced-motion support for any animation.
+The MVP targets WCAG 2.2 AA. It must support complete keyboard navigation, visible focus, sufficient contrast, reduced motion, responsive and zoomable layouts, readable text, states that do not rely on color alone, labeled forms with clear errors, semantic landmarks and heading structure, adequate touch targets, and screen-reader compatibility for primary flows.
 
-Because the audience includes busy clinic owners and managers reviewing business-critical information, pages should avoid ambiguity, tiny text, color-only status communication, and interactions that hide essential approval or publication details.
+Use clear Brazilian Portuguese without technical jargon. Do not hide essential content behind hover. Keep tables and comparisons usable on mobile. Always pair a score with explanatory text. Demonstration and publication notices must be unequivocal. No visual element may suggest an unproven medical or commercial result.
