@@ -8,11 +8,13 @@ Implementation: Separate future task; no application code belongs to this shape 
 
 The MVP has three connected responsive web routes:
 
-- `/`: commercial landing page for Clínica Atual.
+- `/`: commercial landing page for Atria.
 - `/preview/clinica-aurora`: complete public demonstration preview.
 - `/admin`: simple internal operations surface.
 
-Clínica Atual is the B2B product and the only institutional brand across the landing, navigation, page shell, and product voice. Clínica Aurora Dermatologia is a recurring fictional demonstration used only inside before-and-after artifacts, the full preview, and mock admin records.
+Atria is the primary B2B product and service and the only institutional brand across the landing, navigation, product shell, visual identity, overall page composition, and product voice. Atria modernizes websites for clinics; it is not a clinic, medical provider, healthcare institution, or medical practice.
+
+Clínica Aurora Dermatologia is only a fictional demonstration client. It may appear only as content inside Atria's preview experience. Clínica Aurora must never control Atria's navigation, logo, institutional voice, product shell, visual identity, or overall page composition.
 
 The landing and preview lead the commercial experience. The admin exists only to help the founder or operator understand each clinic's next action and open its preview.
 
@@ -20,7 +22,7 @@ The landing and preview lead the commercial experience. The admin exists only to
 
 Primary promise:
 
-> Seu novo site de clínica, aprovado antes de ir ao ar.
+> Seu novo site, aprovado antes de ir ao ar.
 
 Supporting message:
 
@@ -54,64 +56,54 @@ The main action is requesting a preview of the visitor's existing clinic website
 
 ## 4. Design Direction
 
-Direction A, Preview Dominant, is the lead. It is moderated by the whitespace, calm pacing, and low cognitive load of direction B. Direction C contributes diagnostic context and plain-language explanations without allowing the score to compete with the preview.
+The visual direction remains open for a future GPT-5.6 Sol Extra High UI/UX exploration. That exploration must start from the approved product strategy rather than the rejected landing implementation.
 
-Color strategy:
+The final Atria interface should feel premium, architectural, contemporary, restrained, bespoke, precise, calm, and high-trust. It must not feel generic SaaS, template-based, like a conventional marketing agency, hospital-like, visually dated, like a clinic website, like an AI tool, or like a generic website builder.
 
-- Landing: Committed. Surgical teal owns the product-led hero area, balanced by a large clear preview artifact and generous neutral space.
-- Preview: Restrained. The clinic transformation is the visual focus; product chrome stays quiet.
-- Admin: Restrained. Color communicates action or status, never decoration.
+Color selection remains part of the future visual-direction exploration. No mandatory brand palette, fixed brand hex values, prescribed dominant color, or mandatory semantic color tokens are defined at this stage. The selected direction must provide WCAG 2.2 AAA contrast for essential text and critical interactive or status text; clearly visible keyboard focus; distinguishable hover, active, selected, disabled, success, warning, and error states; no color-only meaning; restrained, intentional color; and no generic SaaS gradient, hospital-like palette, or medical visual cliché.
 
-Theme scene:
+Spacing and layout also remain open. No fixed spacing scale, mandatory spacing tokens, fixed grid values, content-width lock, or predetermined section spacing is defined here. The future exploration must determine spacing rhythm, grid, gutters, content width, section density, component proportions, asymmetry, typographic rhythm, and responsive adaptation according to the selected visual direction.
 
-A clinic owner or manager reviews the proposal on a laptop or phone in a bright clinic during business hours, with limited time and focused attention. This requires a light theme, immediate hierarchy, firm contrast, short copy, obvious actions, and a mobile experience equal in importance to desktop.
+The result must use sophisticated, intentional spacing; strong hierarchy; clear semantic grouping; precise optical alignment; generous whitespace where it improves clarity and perceived quality; and tighter proximity between related elements. Avoid mechanically uniform spacing, unnecessary containers, nested cards, and repetitive template-like section rhythm. Desktop, tablet, and mobile compositions must be intentional; mobile may require an independently designed adaptation rather than a stacked desktop layout. The interface must remain resilient at up to 200% zoom, use accessible touch targets, and avoid horizontal overflow.
 
-Reference qualities:
-
-- Stripe: hierarchy, trust, and finish.
-- Linear: precision, rhythm, and consistency.
-- Doctolib and mature digital-health products: accessible clarity for non-technical users.
-
-These references are quality anchors, not templates to copy.
-
-Typography uses the system stack already defined in `app/globals.css`. Do not introduce `next/font/google`, remote fonts, or new font files. Hierarchy comes from weight, scale, spacing, and line length.
+The previous landing implementation was visually rejected. Its hero, layout, CSS, components, imagery, spacing, color choices, section composition, and responsive composition are not approved sources and must not be preserved, reused, or treated as design references.
 
 ## 5. Shared Product Shell
 
-The landing and preview use the Clínica Atual wordmark, restrained navigation, and one clear primary action. Clínica Aurora never occupies the product logo position, primary navigation, page title, or institutional voice.
+The landing and preview identify Atria as the product and keep one clear primary action. Clínica Aurora never occupies Atria's logo position, navigation, page identity, institutional voice, product shell, visual identity, or overall page composition.
 
 Shared presentation rules:
 
-- Use full-width bands and unframed layouts before cards.
-- Keep containers to 8-12px radii.
-- Keep body copy within 65-75 characters per line.
-- Use surgical teal for primary actions and selected states.
-- Reserve green, amber, and red for meaningful status.
+- Preserve unmistakable separation between the Atria product shell and clinic demonstration content.
 - Use icons only where they clarify a known action or state.
-- Avoid nested cards, glass effects, decorative grids, gradient text, hero metrics, generic medical stock imagery, and dark product chrome.
+- Keep states distinguishable without relying on color alone.
+- Avoid unnecessary containers, nested cards, glass effects, decorative grids, gradient text, hero metrics, generic medical stock imagery, medical visual clichés, and generic SaaS gradients.
+- Let the future visual-direction exploration determine palette, typography, spacing, grid, content width, proportions, and responsive composition.
 
 ## 6. Landing Route
 
-### Information Architecture
+### Content Requirements
 
-1. Clínica Atual navigation with product anchors and the primary CTA.
-2. Hero with the primary promise, supporting message, primary CTA, and secondary CTA.
-3. Early before-and-after demonstration of Clínica Aurora with the fictional notice attached to the artifact.
-4. Three plain-language opportunities: first impression, clarity, and mobile experience.
-5. Preview Seguro method: audit, proposal, adjustments, approval, and technical publication.
-6. Operational reassurance: current site remains active, nothing publishes without approval, domain remains controlled, and technical work is handled.
-7. Short request form.
-8. Secondary WhatsApp support and restrained footer.
+The future visual-direction exploration determines the landing's composition, hierarchy, section treatment, and responsive adaptation. The experience must include:
 
-The first viewport must identify Clínica Atual as a website-modernization platform and show enough of the before-and-after artifact to make the next section visible. It must not resemble Clínica Aurora's clinic website.
+- Atria navigation and a clear primary CTA;
+- the primary promise, supporting message, primary CTA, and secondary CTA;
+- before-and-after evidence using Clínica Aurora with the fictional notice attached to the artifact;
+- three plain-language opportunities: first impression, clarity, and mobile experience;
+- the Preview Seguro method: audit, proposal, adjustments, approval, and technical publication;
+- operational reassurance: the current site remains active, nothing publishes without approval, the domain remains controlled, and technical work is handled;
+- a short request form;
+- secondary WhatsApp support and a restrained footer.
 
-### Hero
+The first viewport must identify Atria, communicate its descriptor or category and primary promise, and make the primary CTA clear. Its composition must be established by the future visual-direction exploration and must not resemble Clínica Aurora's clinic website or reuse the rejected landing.
 
-The promise and CTA lead; the product preview is the primary visual proof. Do not use an unrelated hero photograph or a generic medical illustration. The clinic's visual identity remains contained inside the rendered website frames.
+### Opening Experience
+
+The promise, CTA, and preview evidence must establish Atria's offer without copying the rejected landing's hero or composition. Do not use an unrelated promotional photograph or a generic medical illustration. The clinic's visual identity remains contained inside the rendered website frames.
 
 ### Demonstration Module
 
-Desktop shows Antes and Proposta simultaneously with equally readable labels and no novelty interaction required. Mobile uses a segmented control while preserving scroll position and context. The fictional notice remains visible in both modes.
+Antes and Proposta must remain easy to find, compare, and understand across desktop, tablet, mobile, and zoomed layouts. The future exploration chooses the comparison model for each context. Do not require novelty interaction, hide either state, lose context during switching, or obscure the fictional notice.
 
 ### Diagnostic Context
 
@@ -138,7 +130,7 @@ Role options are Médico proprietário, Sócio, Gestor, Marketing, and Outro. Do
 
 Consent copy:
 
-> Autorizo a Clínica Atual a entrar em contato sobre esta solicitação de prévia.
+> Autorizo a Atria a entrar em contato sobre esta solicitação de prévia.
 
 Success copy:
 
@@ -148,24 +140,19 @@ Validation messages name the problem and correction. Preserve entered values aft
 
 ## 7. Preview Route
 
-The preview is a Clínica Atual product surface that contains a Clínica Aurora demonstration. The product header remains visible and labels the page as a demonstration preview.
+The preview is an Atria product surface that contains a Clínica Aurora demonstration. The product identity remains clear and labels the page as a demonstration preview.
 
-Desktop layout:
+Required content and capabilities:
 
-- Quiet product header with page context and CTA.
-- Persistent fictional demonstration notice.
-- Large side-by-side Antes and Proposta website views.
-- Narrow explanatory area titled O que mudou e por quê.
-- Three changes linked to first impression, clarity, and mobile experience.
-- Reassurance near the CTA: nothing is published without approval.
-- Commercial CTA: Solicitar uma prévia como esta.
+- clear Atria page identity and context;
+- a persistent fictional demonstration notice;
+- accessible Antes and Proposta website views;
+- explanatory content titled O que mudou e por quê;
+- three changes linked to first impression, clarity, and mobile experience;
+- reassurance near the CTA that nothing is published without approval;
+- the commercial CTA Solicitar uma prévia como esta.
 
-Mobile layout:
-
-- Sticky but compact Antes / Proposta segmented control.
-- One full-width website view at a time.
-- Change explanations below the active view.
-- The CTA follows the evidence and remains reachable without covering content.
+The future visual-direction exploration determines how these elements are composed and how comparison adapts across desktop, tablet, mobile, and zoomed layouts. Actions must remain reachable without covering content, and switching views must preserve context where switching is used.
 
 The demo route must not offer a fake approval or imply that a fictional site will be published. It may explain the future approval controls, but its actionable conversion is requesting a preview for the visitor's own clinic.
 
@@ -173,23 +160,18 @@ The demo route must not offer a fake approval or imply that a fictional site wil
 
 The admin is a product-register surface with simple operational depth. Its primary task is identifying the next action for each clinic and opening the relevant preview.
 
-Desktop structure:
+Required information and capabilities:
 
-- Compact top bar with page title and clinic search.
-- Filter toolbar for lead stage, preview status, and next action.
-- Dense table or list with Clínica, Cidade, Score, Lead, Preview, Próxima ação, and Atualizado.
-- Selected-row detail panel that preserves list context.
-- Inline status update with clear pending, success, and failure feedback.
-- Direct Abrir preview action.
+- page context and clinic search;
+- filters for lead stage, preview status, and next action, including an active-filter count;
+- Clínica, Cidade, Score, Lead, Preview, Próxima ação, and Atualizado data;
+- selected-clinic details without unnecessary loss of queue context;
+- status updates with clear pending, success, and failure feedback;
+- a direct Abrir preview action.
 
-Mobile structure:
+The future visual-direction exploration determines whether tables, lists, panels, sheets, popovers, or other appropriate patterns best support each viewport. Mobile must prioritize clinic, preview status, and next action without compressing a desktop table or causing horizontal overflow.
 
-- Prioritized list rather than a compressed desktop table.
-- Each row shows clinic, preview status, and next action first.
-- Secondary fields expand inline.
-- Filters open in an accessible sheet or popover and show an active-filter count.
-
-Use 9-13 fictional clinics in the typical mock dataset, including Clínica Aurora. Vary specialty, city, score, lead stage, preview status, commercial status, and next action. Clínica Aurora carries the fictional notice when its detail or preview is open.
+Use 9-13 fictional clinic records in the typical mock dataset and vary specialty, city, score, lead stage, preview status, commercial status, and next action. Clínica Aurora remains confined to Atria's demonstration preview experience and must not become an admin brand or clinic record.
 
 Admin scope excludes site editing, automation, email sequences, analytics, permissions, multi-user support, integrations, automatic generation, custom workflows, and complex settings.
 
@@ -197,11 +179,11 @@ Admin scope excludes site editing, automation, email sequences, analytics, permi
 
 - The landing primary CTA moves to and focuses the request form.
 - Ver exemplo de prévia opens the complete Clínica Aurora preview.
-- The desktop comparison remains side by side; mobile changes view through a semantic segmented control.
+- The comparison interaction adapts intentionally to each viewport, preserves context, remains keyboard and screen-reader operable, and does not rely on novelty interaction.
 - Admin filters update the visible set without losing current filter context.
 - Selecting an admin row exposes details without navigating away from the queue.
 - Status changes provide immediate feedback and remain reversible during the pending state where practical.
-- Normal UI transitions last 150-250ms and communicate state only.
+- UI transitions communicate state only and do not delay task completion.
 - Reduced-motion mode removes non-essential transitions and preserves all feedback.
 
 ## 10. Key States
@@ -214,7 +196,7 @@ Landing:
 Preview:
 
 - Loading skeleton, ready comparison, active Antes, active Proposta, and unavailable screenshot.
-- Desktop side-by-side and mobile segmented presentation.
+- The comparison presentations selected during future visual exploration for desktop, tablet, mobile, and zoomed layouts.
 
 Admin:
 
@@ -241,42 +223,44 @@ Future implementation may use generated raster images for architecture, receptio
 
 ## 12. Accessibility Contract
 
-The three routes target WCAG 2.2 AA:
+The three routes must meet these accessibility requirements:
 
 - Complete keyboard operation and visible focus.
+- WCAG 2.2 AAA contrast for essential text.
+- WCAG 2.2 AAA contrast for critical interactive and status text.
 - Semantic landmarks and heading hierarchy.
-- Sufficient text, control, placeholder, and focus contrast.
+- Clearly visible keyboard focus and distinguishable hover, active, selected, disabled, success, warning, and error states.
 - Touch targets sized for mobile use.
 - Form labels, field-level errors, and an accessible error summary.
 - Screen-reader names for comparison and admin controls.
 - No essential information available only on hover.
 - No meaning communicated by color alone.
 - Score always accompanied by explanatory text.
-- Responsive reflow and zoom without lost actions or horizontal page scrolling.
+- Responsive reflow and zoom up to 200% without lost content, lost actions, overlap, or horizontal page scrolling.
+- Reduced-motion support with equivalent non-motion feedback.
 - The fictional and publication notices remain discoverable and unambiguous.
 
 ## 13. Acceptance Criteria
 
-- A first-time visitor can identify Clínica Atual, its category, promise, and primary CTA within the first viewport.
-- Clínica Aurora never replaces Clínica Atual in institutional navigation or brand hierarchy.
+- A first-time visitor can identify Atria, its descriptor or category, promise, and primary CTA within the first viewport.
+- Clínica Aurora never replaces Atria in navigation, logo, institutional voice, product shell, visual identity, overall page composition, or brand hierarchy.
 - Every appearance of Clínica Aurora carries the required fictional notice.
 - Before-and-after evidence is visually stronger than the score.
 - The public demo preview converts to requesting a personal preview rather than simulating approval.
 - The landing form includes only the confirmed fields and preserves user input on error.
 - Admin users can find the next action, filter records, update status, view details, and open a preview.
-- Mobile layouts restructure comparisons and admin data instead of shrinking desktop layouts.
+- Desktop, tablet, and mobile compositions are intentional; mobile adaptation is designed independently where necessary rather than merely stacking or shrinking desktop.
 - No unsupported medical or commercial claim appears in copy or imagery.
-- No remote or bundled font is added; the existing system stack is used.
 - Keyboard, screen-reader, contrast, motion, and responsive checks meet the accessibility contract.
 
 ## 14. Implementation Handoff
 
 Implement in focused tasks rather than one platform-wide diff:
 
-1. Shared foundations: product shell, tokens, mock types, mock clinic data, and reusable demonstration notice.
+1. Shared foundations: approved product shell and visual foundations, mock types, mock clinic data, and reusable demonstration notice.
 2. Landing route: conversion narrative, before-and-after module, reassurance, and request form.
 3. Preview route: complete Clínica Aurora comparison and explanatory context.
 4. Admin route: operational list, filters, detail panel, status changes, and preview link.
 5. Integrated verification: responsive behavior, accessibility, copy guardrails, and cross-route continuity.
 
-Each implementation task should run the relevant Impeccable flow and finish with lint and build verification. Recommended implementation references are `layout.md`, `adapt.md`, `clarify.md`, `harden.md`, `polish.md`, and `audit.md`; use the brand register for landing and preview, and the product register for admin.
+Each future implementation task should run the relevant Impeccable flow and finish with lint and build verification. This shape task does not run craft, critique, polish, audit, or harden and does not create visual probes.

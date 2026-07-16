@@ -1,10 +1,14 @@
-# AGENTS.md - Clinica Atual
+# AGENTS.md - Atria
 
 ## Project Identity
 
-This project is **clinic-atual**.
+This repository and its only product are **Atria**.
 
-Clinica Atual is a B2B platform/service for modernizing clinic websites.
+Atria is a B2B product and service for modernizing clinic websites in Brazil.
+
+Descriptor:
+
+> Modernização digital para clínicas
 
 The product helps clinic owners, doctors, and clinic managers in Brazil modernize their existing clinic website through:
 
@@ -15,25 +19,34 @@ The product helps clinic owners, doctors, and clinic managers in Brazil moderniz
 - approval before publication;
 - done-for-you domain, hosting, SSL, backup, and launch support.
 
-Core message:
-
-> Seu novo site de clinica, aprovado antes de ir ao ar.
-
 Primary promise:
+
+> Seu novo site, aprovado antes de ir ao ar.
+
+Supporting message:
 
 > Modernizamos o site da sua clinica, mostramos o resultado antes da publicacao e cuidamos de toda a parte tecnica.
 
+Brand distinction:
+
+- Atria is the primary B2B product and service.
+- Atria modernizes websites for clinics.
+- Atria is not a clinic, medical provider, healthcare institution, or medical practice.
+- Clínica Aurora Dermatologia is only a fictional demonstration client.
+- Clínica Aurora may appear only as content inside Atria's preview experience.
+- Clínica Aurora must never control Atria's navigation, logo, institutional voice, product shell, visual identity, or overall page composition.
+
 ## Workspace Scope
 
-ECC may exist in the workspace as future agent tooling / skills infrastructure.
+ECC has been moved outside the Atria workspace. It is external tooling only and must not be treated as part of the application or product.
 
-Do not treat ECC as the product.
+Impeccable remains available as project tooling.
 
-All product code changes must happen inside `clinic-atual` unless explicitly instructed otherwise.
+All product code changes must happen inside `atria` unless explicitly instructed otherwise.
 
-Before making changes, confirm the current working directory is `clinic-atual`.
+Before making changes, confirm the current working directory is `atria`.
 
-If the task mentions frontend, product UI, preview, landing, admin dashboard, clinic audit, scoring, templates, or publication workflow, it belongs to `clinic-atual`.
+If the task mentions frontend, product UI, preview, landing, admin dashboard, clinic audit, scoring, templates, or publication workflow, it belongs to Atria.
 
 ## Model Routing Policy
 
@@ -134,28 +147,35 @@ If they do not exist, ask for direction before implementing major UI.
 
 The UI should feel:
 
-- calm;
 - premium;
-- trustworthy;
-- medical-adjacent;
+- architectural;
+- contemporary;
+- restrained;
+- bespoke;
 - precise;
-- modern;
-- low-friction;
-- clear for non-technical clinic decision-makers.
+- calm;
+- high-trust.
 
 Avoid:
 
 - generic SaaS look;
-- loud purple/blue gradients;
-- AI-toy aesthetics;
-- aggressive agency hype;
-- excessive cards;
+- template-based presentation;
+- conventional marketing-agency aesthetics;
+- hospital-like styling;
+- visually dated styling;
+- clinic-website composition or identity;
+- AI-tool aesthetics;
+- generic website-builder aesthetics;
+- generic SaaS gradients;
+- medical visual clichés;
+- unnecessary containers;
 - nested cards;
-- cheap template feel;
 - tiny gray text;
 - gray text on colored backgrounds;
 - decorative noise;
 - overused startup visuals.
+
+The previous landing implementation was visually rejected. Its hero, layout, CSS, components, imagery, spacing, color choices, section composition, and responsive composition are not approved visual references and must not be reused or inferred as design direction.
 
 The design should emphasize:
 
@@ -216,7 +236,7 @@ Do not implement:
 - customer data storage;
 - medical patient data handling.
 
-Do not modify ECC unless explicitly instructed.
+Do not treat ECC as part of the Atria repository or application.
 
 Do not introduce new dependencies without explaining why.
 
