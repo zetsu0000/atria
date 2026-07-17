@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" fill="none" aria-hidden="true">
+  <!-- Antes: tudo na mesma camada, contato no fundo -->
+  <g stroke="#4a4553" stroke-width="2">
+    <rect x="60" y="80" width="256" height="14" fill="#c9c3d4"/>
+    <rect x="60" y="112" width="256" height="14" fill="#c9c3d4"/>
+    <rect x="60" y="144" width="256" height="14" fill="#c9c3d4"/>
+    <rect x="60" y="176" width="256" height="14" fill="#c9c3d4"/>
+    <rect x="60" y="208" width="256" height="14" fill="#c9c3d4"/>
+    <rect x="60" y="240" width="256" height="14" fill="#c9c3d4"/>
+    <rect x="60" y="272" width="256" height="14" fill="#c9c3d4"/>
+    <rect x="60" y="304" width="256" height="14" fill="#c9c3d4"/>
+    <rect x="60" y="500" width="104" height="14" fill="#8d8599" stroke="#8d8599" stroke-dasharray="6 6"/>
+  </g>
+  <rect x="396" y="48" width="8" height="504" fill="#e04a26"/>
+  <!-- Depois: camadas distintas -->
+  <g stroke="#211d29" stroke-width="2">
+    <rect x="484" y="80" width="256" height="72" fill="#211d29"/>
+    <rect x="484" y="176" width="256" height="72" fill="none"/>
+    <rect x="484" y="272" width="256" height="72" fill="#e0dbe9"/>
+    <rect x="484" y="392" width="150" height="40" rx="20" fill="#e04a26" stroke="#e04a26"/>
+    <line x1="484" y1="480" x2="740" y2="480"/>
+    <line x1="484" y1="512" x2="672" y2="512"/>
+  </g>
+</svg>

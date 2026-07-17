@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { AtriaHeader } from "@/components/landing/atria-header";
 import { CurrentProposalStage } from "@/components/landing/current-proposal-stage";
 import { RequestForm } from "@/components/landing/request-form";
@@ -8,19 +9,19 @@ const chapters = [
     id: "current",
     label: "Atual",
     meta: "O site que existe hoje",
-    title: "Ver o ponto de partida sem interromper a operação.",
+    title: "Entendemos o site de hoje sem tirá-lo do ar.",
   },
   {
     id: "proposal",
     label: "Proposta",
     meta: "Uma direção concreta",
-    title: "Reorganizar a experiência antes de pedir uma decisão.",
+    title: "Uma nova experiência, pronta para ser avaliada.",
   },
   {
     id: "approved",
     label: "Aprovado",
     meta: "Publicação sob controle",
-    title: "Só atravessar para o novo site depois da sua confirmação.",
+    title: "A troca acontece só depois da sua confirmação.",
   },
 ] as const;
 
@@ -195,9 +196,9 @@ export default function Home() {
               <RequestPreviewLink className="editorial-link editorial-link--primary">
                 Solicitar uma prévia do meu site
               </RequestPreviewLink>
-              <a className="editorial-link" href="#comparacao">
+              <Link className="editorial-link" href="/previa/clinica-aurora">
                 Ver exemplo de prévia
-              </a>
+              </Link>
             </div>
           </div>
 
@@ -228,7 +229,7 @@ export default function Home() {
 
           <div className="thesis-heading">
             <h2 id="thesis-title">
-              O site da clínica começa a conversa antes da equipe.
+              A primeira impressão da clínica acontece no site.
             </h2>
           </div>
 
@@ -328,6 +329,15 @@ export default function Home() {
             <p>Uma decisão concreta, não uma promessa abstrata.</p>
           </div>
           <CurrentProposalStage />
+
+          <p className="comparison-more">
+            <Link
+              className="editorial-link editorial-link--primary"
+              href="/previa/clinica-aurora"
+            >
+              Ver a prévia completa da Clínica Aurora
+            </Link>
+          </p>
 
           <div className="comparison-diagnostics" aria-label="Leitura da transformação demonstrada">
             <div className="comparison-diagnostics__heading">

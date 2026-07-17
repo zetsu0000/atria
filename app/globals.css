@@ -510,20 +510,40 @@ textarea:focus-visible,
   text-wrap: pretty;
 }
 
+/* Threshold mark: outlined plane (atual) -> accent line -> solid plane (aprovado). */
 .hero-support__signal {
-  width: 1.25rem;
-  aspect-ratio: 1;
-  display: grid;
-  place-items: center;
+  position: relative;
+  width: 1.9rem;
+  height: 1.1rem;
+}
+
+.hero-support__signal::before,
+.hero-support__signal::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 40%;
+}
+
+.hero-support__signal::before {
+  left: 0;
   border: 1px solid var(--ink);
-  border-radius: 50%;
+}
+
+.hero-support__signal::after {
+  right: 0;
+  background: var(--ink);
 }
 
 .hero-support__signal i {
-  width: 1px;
-  height: 100%;
-  background: var(--ink);
-  transform: rotate(45deg);
+  position: absolute;
+  top: -20%;
+  bottom: -20%;
+  left: 50%;
+  width: 2px;
+  background: var(--accent);
+  transform: translateX(-50%);
 }
 
 .hero-actions {
@@ -572,9 +592,11 @@ textarea:focus-visible,
 .media-chapter::after {
   content: "";
   position: absolute;
-  z-index: -1;
+  /* Above the chapter visual, below the copy: keeps text readable over any artwork. */
+  z-index: 1;
   inset: 0;
-  background: linear-gradient(to bottom, transparent 52%, oklch(0.08 0 0 / 0.88));
+  pointer-events: none;
+  background: linear-gradient(to bottom, transparent 50%, oklch(0.08 0 0 / 0.82));
 }
 
 .media-chapter__copy {
@@ -641,43 +663,54 @@ textarea:focus-visible,
 }
 
 .chapter-current__nav {
-  top: 15%;
+  top: 12%;
   width: 76%;
-  height: 7%;
+  height: 6.5%;
+  border-radius: 0;
+  border-bottom: 1px solid oklch(0.88 0.015 70 / 0.38);
+  background:
+    linear-gradient(oklch(0.88 0.015 70) 0 0) 0 42% / 24% 32% no-repeat,
+    linear-gradient(oklch(0.88 0.015 70 / 0.55) 0 0) 62% 46% / 8% 20% no-repeat,
+    linear-gradient(oklch(0.88 0.015 70 / 0.55) 0 0) 80% 46% / 8% 20% no-repeat,
+    linear-gradient(oklch(0.88 0.015 70 / 0.55) 0 0) 98% 46% / 8% 20% no-repeat;
 }
 
 .chapter-current__title {
-  top: 29%;
+  top: 25%;
   width: 48%;
   height: 8%;
 }
 
 .chapter-current__copy {
-  top: 41%;
+  top: 37%;
   width: 58%;
   height: 2.3%;
   opacity: 0.65;
 }
 
 .chapter-current__copy--short {
-  top: 46%;
+  top: 42%;
   width: 38%;
 }
 
 .chapter-current__image {
-  top: 56%;
+  top: 50%;
   width: 76%;
   height: 25%;
   background:
-    linear-gradient(110deg, oklch(0.46 0.03 70), transparent 50%),
-    oklch(0.73 0.035 70);
+    linear-gradient(oklch(0.88 0.015 70 / 0.6) 0 0) 100% 4% / 26% 9% no-repeat,
+    linear-gradient(oklch(0.88 0.015 70 / 0.42) 0 0) 100% 24% / 26% 5% no-repeat,
+    linear-gradient(oklch(0.88 0.015 70 / 0.42) 0 0) 100% 36% / 26% 5% no-repeat,
+    linear-gradient(oklch(0.88 0.015 70 / 0.42) 0 0) 100% 48% / 20% 5% no-repeat,
+    linear-gradient(oklch(0.88 0.015 70 / 0.6) 0 0) 100% 70% / 26% 9% no-repeat,
+    linear-gradient(115deg, oklch(0.44 0.035 70) 0 30%, oklch(0.68 0.04 70) 30% 58%, oklch(0.56 0.035 70) 58% 100%) 0 0 / 66% 100% no-repeat;
 }
 
 .chapter-current__footer {
-  top: 86%;
+  top: 79%;
   width: 76%;
   height: 1px;
-  opacity: 0.48;
+  opacity: 0.38;
 }
 
 .chapter-visual--proposal {
@@ -696,7 +729,8 @@ textarea:focus-visible,
 
 .chapter-proposal__field {
   position: absolute;
-  inset: 27% 7% 9% 34%;
+  /* Ends above the copy zone so the heading never crosses the light panel. */
+  inset: 24% 7% 31% 34%;
   border-radius: 0.35rem;
   background: var(--page);
   box-shadow: -0.6rem 0 0 var(--inverse);
@@ -705,19 +739,21 @@ textarea:focus-visible,
 .chapter-proposal__field::before {
   content: "";
   position: absolute;
-  inset: 11% 12% 48%;
+  inset: 12% 12% 14%;
   background:
-    linear-gradient(var(--ink) 0 0) 0 0 / 80% 12% no-repeat,
-    linear-gradient(var(--ink) 0 0) 0 36% / 62% 8% no-repeat,
-    linear-gradient(var(--line) 0 0) 0 68% / 92% 5% no-repeat,
-    linear-gradient(var(--line) 0 0) 0 88% / 72% 5% no-repeat;
+    linear-gradient(var(--ink) 0 0) 0 0 / 74% 13% no-repeat,
+    linear-gradient(var(--ink) 0 0) 0 22% / 52% 13% no-repeat,
+    linear-gradient(var(--line) 0 0) 0 52% / 90% 4.5% no-repeat,
+    linear-gradient(var(--line) 0 0) 0 64% / 72% 4.5% no-repeat,
+    linear-gradient(var(--line) 0 0) 0 76% / 82% 4.5% no-repeat,
+    linear-gradient(var(--accent) 0 0) 0 100% / 30% 11% no-repeat;
 }
 
 .chapter-proposal__line,
 .chapter-proposal__line--two {
   position: absolute;
-  top: 33%;
-  bottom: 12%;
+  top: 30%;
+  bottom: 31%;
   left: 15%;
   width: 1px;
   background: var(--inverse);
@@ -731,7 +767,7 @@ textarea:focus-visible,
 .chapter-proposal__contact {
   position: absolute;
   right: 12%;
-  bottom: 15%;
+  bottom: 28%;
   width: 28%;
   height: 7%;
   border-radius: 999px;
@@ -753,12 +789,22 @@ textarea:focus-visible,
 
 .chapter-approved__before {
   left: 8%;
-  background: oklch(0.18 0.02 302);
+  background:
+    linear-gradient(oklch(0.33 0.012 302) 0 0) 18% 16% / 56% 6% no-repeat,
+    linear-gradient(oklch(0.28 0.012 302) 0 0) 18% 30% / 70% 3.5% no-repeat,
+    linear-gradient(oklch(0.28 0.012 302) 0 0) 18% 38% / 50% 3.5% no-repeat,
+    linear-gradient(oklch(0.25 0.015 302) 0 0) 18% 62% / 70% 22% no-repeat,
+    oklch(0.18 0.02 302);
 }
 
 .chapter-approved__after {
   right: 8%;
-  background: var(--accent-pale);
+  background:
+    linear-gradient(oklch(0.3 0.045 31) 0 0) 18% 16% / 56% 6% no-repeat,
+    linear-gradient(oklch(0.55 0.08 31 / 0.55) 0 0) 18% 30% / 70% 3.5% no-repeat,
+    linear-gradient(oklch(0.55 0.08 31 / 0.55) 0 0) 18% 38% / 50% 3.5% no-repeat,
+    linear-gradient(var(--accent) 0 0) 18% 88% / 34% 7% no-repeat,
+    var(--accent-pale);
 }
 
 .chapter-approved__threshold {
@@ -1168,6 +1214,12 @@ textarea:focus-visible,
   font-size: 0.78rem;
 }
 
+.comparison-more {
+  margin: 1.6rem 0 0;
+  display: flex;
+  justify-content: flex-end;
+}
+
 .comparison-footnote p {
   margin: 0;
 }
@@ -1199,18 +1251,18 @@ textarea:focus-visible,
 }
 
 .thesis-heading {
-  min-height: clamp(48rem, 72vw, 66rem);
+  min-height: clamp(32rem, 48vw, 44rem);
   display: flex;
   align-items: center;
 }
 
 .thesis-heading h2 {
-  max-width: 8.2ch;
-  margin: 0 0 0 8%;
-  font-size: clamp(6rem, 11.5vw, 10.4rem);
+  max-width: 12ch;
+  margin: 0;
+  font-size: clamp(5.4rem, 10.6vw, 9.6rem);
   font-weight: 400;
   letter-spacing: -0.05em;
-  line-height: 0.82;
+  line-height: 0.86;
   text-wrap: balance;
 }
 
@@ -1326,7 +1378,8 @@ textarea:focus-visible,
 }
 
 .method-heading {
-  padding: clamp(10rem, 17vw, 17rem) var(--gutter) clamp(5rem, 8vw, 8rem);
+  /* The thesis above already closes with a long editorial pause; avoid doubling it. */
+  padding: clamp(6rem, 10vw, 10rem) var(--gutter) clamp(5rem, 8vw, 8rem);
 }
 
 .method-heading h2 {
@@ -1589,7 +1642,7 @@ textarea:focus-visible,
 }
 
 .assurance {
-  padding: clamp(10rem, 17vw, 17rem) var(--gutter) clamp(12rem, 18vw, 18rem);
+  padding: clamp(7rem, 11vw, 11rem) var(--gutter) clamp(12rem, 18vw, 18rem);
 }
 
 .assurance-opening h2 {
@@ -1650,13 +1703,14 @@ textarea:focus-visible,
   position: relative;
   width: 1px;
   height: 100%;
-  display: grid;
-  place-items: center;
   background: var(--accent);
   font-style: normal;
 }
 
 .assurance-threshold > i span {
+  position: absolute;
+  top: 50%;
+  left: 50%;
   width: 7rem;
   aspect-ratio: 1;
   display: grid;
@@ -1667,7 +1721,7 @@ textarea:focus-visible,
   font-size: 0.68rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  transform: rotate(-12deg);
+  transform: translate(-50%, -50%) rotate(-12deg);
 }
 
 .assurance-index {
@@ -2056,6 +2110,305 @@ textarea:focus-visible,
   margin: 0;
 }
 
+/* ————— Prévia demonstrativa (/previa/clinica-aurora) ————— */
+
+.preview-return {
+  align-self: stretch;
+  width: var(--rail);
+  flex: 0 0 var(--rail);
+  display: grid;
+  place-items: center;
+  border-right: 1px solid var(--line);
+  text-decoration: none;
+  font-size: 1.15rem;
+}
+
+.preview-page {
+  /* Clears the fixed header so the sticky notice starts visible. */
+  padding-top: var(--header);
+}
+
+.preview-notice {
+  position: sticky;
+  top: var(--header);
+  z-index: 20;
+  margin: 0;
+  padding: 0.65rem var(--gutter);
+  border-bottom: 1px solid var(--line);
+  background: var(--accent-pale);
+  color: var(--ink);
+  font-size: 0.8rem;
+}
+
+.preview-notice strong {
+  font-weight: 600;
+}
+
+.preview-opening {
+  padding: clamp(5rem, 8vw, 8rem) var(--gutter) clamp(6rem, 10vw, 10rem);
+}
+
+.preview-opening__descriptor {
+  margin: 0;
+  font-size: 0.76rem;
+}
+
+.preview-opening__descriptor::before {
+  content: "";
+  display: inline-block;
+  width: 0.42rem;
+  height: 0.42rem;
+  margin-right: 0.6rem;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.preview-opening h1 {
+  max-width: 13ch;
+  margin: clamp(3rem, 5vw, 5rem) 0 0;
+  font-size: clamp(3.1rem, 6.8vw, 6.2rem);
+  font-weight: 400;
+  letter-spacing: -0.045em;
+  line-height: 0.94;
+  text-wrap: balance;
+}
+
+.preview-opening h1 em {
+  color: var(--accent);
+  font-style: normal;
+}
+
+.preview-opening__support {
+  margin-top: clamp(2.5rem, 4.5vw, 4.5rem);
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 3rem;
+}
+
+.preview-opening__support p {
+  max-width: 34rem;
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: clamp(1rem, 1.35vw, 1.28rem);
+  line-height: 1.45;
+}
+
+.preview-comparison,
+.preview-changes {
+  padding: 0 var(--gutter) clamp(7rem, 11vw, 11rem);
+}
+
+.preview-comparison h2 {
+  max-width: 18ch;
+  margin: clamp(2.5rem, 4.5vw, 4.5rem) 0 0;
+  font-size: clamp(2rem, 4vw, 3.6rem);
+  font-weight: 400;
+  letter-spacing: -0.035em;
+  line-height: 1;
+  text-wrap: balance;
+}
+
+.preview-changes h2 {
+  max-width: 10ch;
+  margin: clamp(3.5rem, 6vw, 6rem) 0 clamp(3rem, 5vw, 5rem);
+  font-size: clamp(3.4rem, 7.6vw, 7rem);
+  font-weight: 400;
+  letter-spacing: -0.05em;
+  line-height: 0.86;
+  text-wrap: balance;
+}
+
+.preview-change-list {
+  border-bottom: 1px solid var(--line);
+}
+
+.preview-change {
+  min-height: clamp(18rem, 25vw, 24rem);
+  padding: 2.5rem 0;
+  display: grid;
+  grid-template-columns: minmax(3rem, 0.3fr) minmax(9rem, 0.7fr) minmax(20rem, 1.7fr) minmax(14rem, 0.9fr);
+  gap: clamp(1rem, 3vw, 3rem);
+  align-items: center;
+  border-top: 1px solid var(--line);
+}
+
+.preview-change__number,
+.preview-change__label {
+  align-self: start;
+  margin: 0;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.preview-change__body h3 {
+  max-width: 17ch;
+  margin: 0;
+  font-size: clamp(1.9rem, 3.3vw, 3.1rem);
+  font-weight: 400;
+  letter-spacing: -0.035em;
+  line-height: 0.98;
+  text-wrap: balance;
+}
+
+.preview-change__body dl {
+  margin: clamp(1.5rem, 2.5vw, 2.5rem) 0 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(1rem, 2.5vw, 2.5rem);
+}
+
+.preview-change__body dt {
+  margin-bottom: 0.7rem;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.preview-change__body dd {
+  max-width: 34ch;
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.preview-change__diagram {
+  width: 100%;
+  height: auto;
+  align-self: center;
+}
+
+.preview-approval {
+  padding: clamp(6rem, 9vw, 9rem) var(--gutter) clamp(7rem, 10vw, 10rem);
+  background: var(--inverse);
+  color: var(--inverse-ink);
+}
+
+.preview-approval h2 {
+  max-width: 11ch;
+  margin: clamp(4rem, 7vw, 7rem) 0 0;
+  font-size: clamp(3.2rem, 6.8vw, 6.4rem);
+  font-weight: 400;
+  letter-spacing: -0.05em;
+  line-height: 0.88;
+  text-wrap: balance;
+}
+
+.preview-approval > p {
+  max-width: 37rem;
+  margin: clamp(2.5rem, 4vw, 4rem) 0 0;
+  color: oklch(0.74 0 0);
+  font-size: clamp(1.02rem, 1.4vw, 1.3rem);
+  line-height: 1.5;
+}
+
+.preview-approval__note {
+  padding-left: 1.2rem;
+  border-left: 2px solid var(--accent);
+  color: var(--accent-pale);
+}
+
+.preview-cta {
+  min-height: 76svh;
+  padding: clamp(6rem, 9vw, 9rem) var(--gutter);
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: clamp(2.5rem, 4vw, 4rem);
+  text-align: center;
+}
+
+.preview-cta > p {
+  margin: 0;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.preview-cta h2 {
+  max-width: 12ch;
+  margin: 0;
+  font-size: clamp(3.4rem, 7.8vw, 7.2rem);
+  font-weight: 400;
+  letter-spacing: -0.05em;
+  line-height: 0.9;
+  text-wrap: balance;
+}
+
+.preview-cta em {
+  color: var(--accent);
+  font-style: normal;
+}
+
+@media (max-width: 66rem) {
+  .preview-change {
+    grid-template-columns: minmax(2.5rem, 0.25fr) minmax(0, 1.8fr) minmax(13rem, 1fr);
+  }
+
+  .preview-change__label {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .preview-change__body {
+    grid-column: 2;
+  }
+
+  .preview-change__diagram {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+  }
+}
+
+@media (max-width: 50rem) {
+  .preview-opening__support {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2rem;
+  }
+}
+
+@media (max-width: 37.5rem) {
+  .preview-notice {
+    font-size: 0.72rem;
+  }
+
+  .preview-opening {
+    padding-top: 3.5rem;
+  }
+
+  .preview-opening h1 {
+    font-size: clamp(2.6rem, 11.5vw, 3.4rem);
+  }
+
+  .preview-change {
+    min-height: 0;
+    grid-template-columns: 2.5rem 1fr;
+    gap: 1.4rem 0.8rem;
+  }
+
+  .preview-change__label {
+    grid-column: 2;
+  }
+
+  .preview-change__body,
+  .preview-change__diagram {
+    grid-column: 2;
+    grid-row: auto;
+  }
+
+  .preview-change__body dl {
+    grid-template-columns: 1fr;
+    gap: 1.2rem;
+  }
+
+  .preview-cta {
+    min-height: 66svh;
+  }
+}
+
 @keyframes hero-line-in {
   from {
     opacity: 0.2;
@@ -2155,6 +2508,16 @@ textarea:focus-visible,
     scroll-snap-align: start;
   }
 
+  /* Compress the mock upward so the copy zone stays clear of the artwork. */
+  .chapter-current__image {
+    top: 46%;
+    height: 22%;
+  }
+
+  .chapter-current__footer {
+    display: none;
+  }
+
   .comparison-proof__heading h2 {
     font-size: clamp(5rem, 14vw, 7rem);
   }
@@ -2206,7 +2569,9 @@ textarea:focus-visible,
   .fullscreen-menu {
     inset: var(--header) 0 0;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-rows: repeat(3, 11.2rem);
+    /* Rows grow with content so the request link is never clipped. */
+    grid-template-rows: repeat(3, minmax(11.2rem, auto));
+    align-content: start;
     gap: 0.7rem;
     padding: 0.7rem;
   }
@@ -2376,6 +2741,11 @@ textarea:focus-visible,
     margin-top: 0.7rem;
   }
 
+  .comparison-threshold span {
+    /* Smaller knob so it stays inside the demo's edge padding instead of covering copy. */
+    width: 1.6rem;
+  }
+
   .clinic-site--current,
   .clinic-site--proposal {
     padding: 5%;
@@ -2521,12 +2891,12 @@ textarea:focus-visible,
 
 @media (max-width: 50rem) {
   .thesis-heading {
-    min-height: 48rem;
+    min-height: 34rem;
   }
 
   .thesis-heading h2 {
     margin-left: 0;
-    font-size: clamp(5.8rem, 13vw, 7rem);
+    font-size: clamp(5.2rem, 11.5vw, 6.6rem);
   }
 
   .thesis-intro {
@@ -2651,13 +3021,13 @@ textarea:focus-visible,
   }
 
   .thesis-heading {
-    min-height: 38rem;
+    min-height: 26rem;
   }
 
   .thesis-heading h2 {
-    max-width: 8ch;
-    font-size: clamp(4.3rem, 19vw, 6.4rem);
-    line-height: 0.8;
+    max-width: 10ch;
+    font-size: clamp(3.6rem, 16vw, 5.4rem);
+    line-height: 0.86;
   }
 
   .thesis-intro {
@@ -2684,7 +3054,7 @@ textarea:focus-visible,
   }
 
   .opportunity-row {
-    min-height: 29rem;
+    min-height: 22rem;
     padding: 2rem 0;
     gap: 1.6rem 0.8rem;
   }
@@ -2755,7 +3125,7 @@ textarea:focus-visible,
   }
 
   .diagnostic-row {
-    min-height: 24rem;
+    min-height: 19rem;
     grid-template-columns: 2.5rem 1fr;
     align-content: center;
     gap: 1.5rem 0.8rem;
@@ -2829,7 +3199,7 @@ textarea:focus-visible,
   }
 
   .assurance-row {
-    min-height: 17rem;
+    min-height: 13rem;
     grid-template-columns: 2.5rem 1fr auto;
     align-content: center;
     gap: 1.5rem 0.8rem;
@@ -2837,7 +3207,13 @@ textarea:focus-visible,
 
   .assurance-row h3,
   .assurance-row p {
-    grid-column: 2 / -1;
+    grid-column: 2;
+  }
+
+  .assurance-row > span:last-child {
+    grid-row: 1;
+    grid-column: 3;
+    align-self: start;
   }
 
   .assurance-row h3 {
@@ -2930,7 +3306,7 @@ textarea:focus-visible,
 
 @media (max-width: 21.25rem) {
   .thesis-heading h2 {
-    font-size: 4rem;
+    font-size: 3.4rem;
   }
 
   .method-panel__copy h3 {
