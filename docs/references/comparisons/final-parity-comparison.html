@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Atria × Konpo — comparação final</title>
+    <style>
+      * { box-sizing: border-box; }
+      body { margin: 0; padding: 32px; background: #151319; color: #f6f2f8; font: 14px/1.4 system-ui, sans-serif; }
+      h1, h2 { font-weight: 500; }
+      section { margin: 0 0 56px; }
+      .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+      figure { margin: 0; }
+      figcaption { margin-bottom: 8px; }
+      img { display: block; width: 100%; height: auto; border: 1px solid #504b56; }
+      .mobile { grid-template-columns: repeat(2, minmax(0, 390px)); }
+      .overlay { position: relative; width: min(100%, 1440px); }
+      .overlay img + img { position: absolute; inset: 0; opacity: .5; }
+      @media (max-width: 760px) { body { padding: 16px; } .pair, .mobile { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <h1>Comparação final de paridade estrutural</h1>
+    <section>
+      <h2>Dobra desktop · 1440 × 900</h2>
+      <div class="pair">
+        <figure>
+          <figcaption>Referência Konpo</figcaption>
+          <img src="../screenshots/konpo/1440-fold.png" alt="Dobra desktop da referência Konpo" />
+        </figure>
+        <figure>
+          <figcaption>Atria final</figcaption>
+          <img src="../screenshots/atria/final-1440-fold.png" alt="Dobra desktop final da Atria" />
+        </figure>
+      </div>
+    </section>
+    <section>
+      <h2>Sobreposição geométrica · 50%</h2>
+      <div class="overlay">
+        <img src="../screenshots/konpo/1440-fold.png" alt="Referência Konpo" />
+        <img src="../screenshots/atria/final-1440-fold.png" alt="Atria final sobre a referência" />
+      </div>
+    </section>
+    <section>
+      <h2>Dobra mobile · 390 × 844</h2>
+      <div class="pair mobile">
+        <figure>
+          <figcaption>Referência Konpo</figcaption>
+          <img src="../screenshots/konpo/390-fold.png" alt="Dobra mobile da referência Konpo" />
+        </figure>
+        <figure>
+          <figcaption>Atria final</figcaption>
+          <img src="../screenshots/atria/final-390-fold.png" alt="Dobra mobile final da Atria" />
+        </figure>
+      </div>
+    </section>
+    <section>
+      <h2>Menu desktop · 1440 × 900</h2>
+      <div class="pair">
+        <figure>
+          <figcaption>Referência Konpo</figcaption>
+          <img src="../screenshots/konpo/1440-menu-open.png" alt="Menu desktop da referência Konpo" />
+        </figure>
+        <figure>
+          <figcaption>Atria final</figcaption>
+          <img src="../screenshots/atria/final-1440-menu.png" alt="Menu desktop final da Atria" />
+        </figure>
+      </div>
+    </section>
+    <section>
+      <h2>Menu mobile · 390 × 844</h2>
+      <div class="pair mobile">
+        <figure>
+          <figcaption>Referência Konpo</figcaption>
+          <img src="../screenshots/konpo/390-menu-open.png" alt="Menu mobile da referência Konpo" />
+        </figure>
+        <figure>
+          <figcaption>Atria final</figcaption>
+          <img src="../screenshots/atria/final-390-menu.png" alt="Menu mobile final da Atria" />
+        </figure>
+      </div>
+    </section>
+  </body>
+</html>

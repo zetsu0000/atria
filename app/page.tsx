@@ -1,76 +1,163 @@
-import {
-  LandingNav,
-  PreviewComparison,
-  RequestPreviewLink,
-  RequestForm,
-} from "./landing-interactions";
+import { AtriaHeader } from "@/components/landing/atria-header";
+import { CurrentProposalStage } from "@/components/landing/current-proposal-stage";
+import { RequestForm } from "@/components/landing/request-form";
+import { RequestPreviewLink } from "@/components/landing/request-preview-link";
+
+const chapters = [
+  {
+    id: "current",
+    label: "Atual",
+    meta: "O site que existe hoje",
+    title: "Ver o ponto de partida sem interromper a operação.",
+  },
+  {
+    id: "proposal",
+    label: "Proposta",
+    meta: "Uma direção concreta",
+    title: "Reorganizar a experiência antes de pedir uma decisão.",
+  },
+  {
+    id: "approved",
+    label: "Aprovado",
+    meta: "Publicação sob controle",
+    title: "Só atravessar para o novo site depois da sua confirmação.",
+  },
+] as const;
 
 const opportunities = [
   {
-    title: "Primeira impressão",
-    observation:
-      "O site pode comunicar menos cuidado do que a clínica entrega no dia a dia.",
-    improvement:
-      "A proposta reorganiza a apresentação para tornar qualidade e confiança perceptíveis desde o primeiro contato.",
+    label: "Primeira impressão",
+    title: "O site precisa apresentar a clínica antes de pedir atenção.",
+    copy: "A estrutura, o ritmo e a linguagem devem ajudar alguém a entender onde chegou — sem depender de uma explicação da equipe.",
   },
   {
-    title: "Clareza",
-    observation:
-      "Serviços, localização e formas de contato nem sempre aparecem na ordem em que as pessoas procuram.",
-    improvement:
-      "A informação ganha hierarquia, nomes diretos e caminhos mais curtos — sem promessas que o site não possa sustentar.",
+    label: "Clareza operacional",
+    title: "Informação importante não deveria ficar escondida.",
+    copy: "Especialidades, equipe, localização e contato ganham uma hierarquia legível, construída a partir do que a clínica realmente oferece.",
   },
   {
-    title: "Experiência mobile",
-    observation:
-      "No celular, textos longos, menus comprimidos e ações pouco visíveis aumentam o esforço.",
-    improvement:
-      "A proposta adapta navegação, leitura e contato para telas menores, em vez de apenas empilhar o desktop.",
+    label: "Experiência móvel",
+    title: "A experiência precisa continuar precisa em uma tela pequena.",
+    copy: "Navegação, leitura e pontos de contato são reorganizados para funcionar sem apertos, desvios ou elementos concorrendo entre si.",
   },
-];
+] as const;
 
-const process = [
+const methodSteps = [
   {
-    title: "Auditoria",
-    copy: "Lemos o site atual como uma pessoa que chega pela primeira vez.",
+    phase: "Leitura",
+    title: "Analisamos o que o site comunica hoje.",
+    summary: "Observamos a primeira impressão, a organização do conteúdo, a experiência móvel e os caminhos de contato.",
+    clinic: "Compartilha o site atual e o contexto essencial da clínica.",
+    atria: "Mapeia oportunidades e preserva o que ainda faz sentido.",
+    control: "Nenhuma alteração é feita no site em funcionamento.",
   },
   {
-    title: "Proposta",
-    copy: "Criamos uma direção concreta com conteúdo, estrutura e navegação reorganizados.",
+    phase: "Direção",
+    title: "Transformamos os achados em uma proposta visível.",
+    summary: "A nova direção deixa de ser uma conversa abstrata e passa a existir como uma experiência navegável.",
+    clinic: "Confirma prioridades, informações e limites da proposta.",
+    atria: "Define hierarquia, composição, linguagem e direção visual.",
+    control: "A proposta vive em um ambiente separado do site atual.",
   },
   {
-    title: "Ajustes",
-    copy: "Você revisa, comenta e pede correções antes de qualquer publicação.",
+    phase: "Revisão",
+    title: "A clínica comenta sobre algo concreto.",
+    summary: "Conteúdo e experiência são revistos com base na prévia, sem exigir uma decisão sobre promessas ou slides.",
+    clinic: "Revisa a prévia e indica ajustes necessários antes do avanço.",
+    atria: "Organiza os comentários e apresenta as correções no contexto.",
+    control: "O que ainda está em revisão não é tratado como aprovado.",
   },
   {
-    title: "Aprovação",
-    copy: "A versão só atravessa para a etapa final quando a clínica aprova.",
+    phase: "Aprovação",
+    title: "A versão só avança depois da confirmação.",
+    summary: "A publicação é uma etapa deliberada. A clínica sabe o que será colocado no ar antes da transição.",
+    clinic: "Confirma a versão final e autoriza a preparação da publicação.",
+    atria: "Consolida a versão aprovada e prepara a transição técnica.",
+    control: "Sem aprovação explícita, o site atual continua como está.",
   },
   {
-    title: "Publicação técnica",
-    copy: "Depois do aceite, a Atria cuida da migração, do domínio, do SSL e do lançamento.",
+    phase: "Publicação",
+    title: "Cuidamos da passagem para o novo site.",
+    summary: "Domínio, hospedagem, SSL, backup e lançamento são tratados como parte da entrega, com a clínica informada.",
+    clinic: "Acompanha a janela combinada e valida o resultado publicado.",
+    atria: "Executa e verifica os passos técnicos previstos na entrega.",
+    control: "A transição segue a versão aprovada e uma janela combinada.",
   },
-];
+] as const;
+
+const diagnostics = [
+  {
+    dimension: "Hierarquia",
+    current: "Informações competindo pela mesma atenção.",
+    proposal: "Uma sequência clara para conhecer, entender e entrar em contato.",
+  },
+  {
+    dimension: "Leitura",
+    current: "Blocos longos e pouca distinção entre assuntos.",
+    proposal: "Escala, contraste e ritmo orientando cada camada de conteúdo.",
+  },
+  {
+    dimension: "Mobile",
+    current: "A versão pequena apenas comprime a composição existente.",
+    proposal: "A experiência é recomposta para toque, leitura e continuidade.",
+  },
+] as const;
 
 const assurances = [
-  {
-    title: "O site atual permanece ativo",
-    copy: "A prévia é preparada em um ambiente separado. A operação da clínica não precisa parar.",
-  },
-  {
-    title: "Nada é publicado sem aprovação",
-    copy: "A clínica decide quando a proposta está pronta para substituir a versão atual.",
-  },
-  {
-    title: "O domínio continua sob controle da clínica",
-    copy: "Atria orienta e executa a parte técnica sem transformar o domínio em uma dependência comercial.",
-  },
-  {
-    title: "A parte técnica fica com a Atria",
-    copy: "Hospedagem, SSL, backup e publicação entram no plano de lançamento aprovado com a clínica.",
-  },
-];
+  ["Site atual preservado", "A prévia é preparada sem substituir o que está em funcionamento."],
+  ["Resultado antes da publicação", "A clínica recebe uma direção visível antes de autorizar a troca."],
+  ["Revisão em contexto", "Os ajustes são avaliados na própria experiência, não em uma lista abstrata."],
+  ["Aprovação explícita", "A preparação da publicação começa somente depois da confirmação."],
+  ["Operação técnica assistida", "Domínio, hospedagem, SSL, backup e lançamento fazem parte do suporte."],
+  ["Transição combinada", "A mudança segue a versão aprovada e uma janela conhecida pela clínica."],
+] as const;
 
+function ChapterVisual({ id }: { id: (typeof chapters)[number]["id"] }) {
+  if (id === "current") {
+    return (
+      <div className="chapter-visual chapter-visual--current" aria-hidden="true">
+        <span className="chapter-current__nav" />
+        <span className="chapter-current__title" />
+        <span className="chapter-current__copy" />
+        <span className="chapter-current__copy chapter-current__copy--short" />
+        <span className="chapter-current__image" />
+        <span className="chapter-current__footer" />
+      </div>
+    );
+  }
+
+  if (id === "proposal") {
+    return (
+      <div className="chapter-visual chapter-visual--proposal" aria-hidden="true">
+        <span className="chapter-proposal__line" />
+        <span className="chapter-proposal__line chapter-proposal__line--two" />
+        <span className="chapter-proposal__field" />
+        <span className="chapter-proposal__contact" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="chapter-visual chapter-visual--approved" aria-hidden="true">
+      <span className="chapter-approved__before" />
+      <span className="chapter-approved__threshold" />
+      <span className="chapter-approved__after" />
+      <span className="chapter-approved__signal">A</span>
+    </div>
+  );
+}
+
+function MethodDiagram({ step }: { step: number }) {
+  return (
+    <div className="method-diagram" data-step={step} aria-hidden="true">
+      <span className="method-diagram__frame" />
+      <span className="method-diagram__plane method-diagram__plane--one" />
+      <span className="method-diagram__plane method-diagram__plane--two" />
+      <span className="method-diagram__axis" />
+      <span className="method-diagram__point">{String(step).padStart(2, "0")}</span>
+    </div>
+  );
+}
 export default function Home() {
   return (
     <>
@@ -78,165 +165,294 @@ export default function Home() {
         Ir para o conteúdo principal
       </a>
 
-      <LandingNav />
+      <AtriaHeader />
 
-      <main id="conteudo-principal">
-        <section className="hero" aria-labelledby="hero-title">
-          <div className="hero__copy">
-            <p className="descriptor">Modernização digital para clínicas</p>
-            <h1 id="hero-title">Seu novo site, aprovado antes de ir ao ar.</h1>
-            <p className="hero__support">
-              Modernizamos o site da sua clínica, mostramos o resultado antes
-              da publicação e cuidamos de toda a parte técnica.
+      <main id="conteudo-principal" className="page-frame">
+        <section id="visao" className="hero" aria-labelledby="hero-title">
+          <div className="hero-lead">
+            <p className="hero-descriptor">
+              Modernização digital para clínicas
             </p>
 
-            <div className="hero__actions" aria-label="Ações principais">
-              <RequestPreviewLink className="button button--primary">
+            <h1 id="hero-title">
+              <span>Seu novo site,</span>
+              <span>
+                <em>aprovado antes</em> de ir ao ar.
+              </span>
+            </h1>
+
+            <div className="hero-support">
+              <span className="hero-support__signal" aria-hidden="true">
+                <i />
+              </span>
+              <p>
+                Modernizamos o site da sua clínica, mostramos o resultado antes
+                da publicação e cuidamos de toda a parte técnica.
+              </p>
+            </div>
+
+            <div className="hero-actions" aria-label="Ações principais">
+              <RequestPreviewLink className="editorial-link editorial-link--primary">
                 Solicitar uma prévia do meu site
               </RequestPreviewLink>
-              <a className="text-link" href="#exemplo">
+              <a className="editorial-link" href="#comparacao">
                 Ver exemplo de prévia
               </a>
             </div>
-            <p className="cta-explainer">
-              Você envia o endereço do site. Atria prepara a avaliação e
-              apresenta a proposta antes de qualquer publicação.
-            </p>
           </div>
 
-          <div id="exemplo" className="hero__proof" aria-label="Exemplo de prévia">
-            <PreviewComparison />
-          </div>
-
-          <div className="hero__reassurance" aria-label="Garantias iniciais">
-            <p>Nenhuma alteração é feita no site atual.</p>
-            <p>Publicação somente depois da sua aprovação.</p>
-            <p>Atria cuida da parte técnica; a clínica mantém o controle.</p>
+          <div className="hero-gallery" aria-label="Etapas do mecanismo Atria">
+            {chapters.map((chapter) => (
+              <article
+                key={chapter.id}
+                className={`media-chapter media-chapter--${chapter.id}`}
+              >
+                <ChapterVisual id={chapter.id} />
+                <div className="media-chapter__copy">
+                  <div>
+                    <span>{chapter.label}</span>
+                    <small>{chapter.meta}</small>
+                  </div>
+                  <h2>{chapter.title}</h2>
+                </div>
+              </article>
+            ))}
           </div>
         </section>
 
-        <section className="opportunities section-shell" aria-labelledby="opportunities-title">
-          <div className="section-intro">
-            <p className="section-context">O que a prévia torna visível</p>
-            <h2 id="opportunities-title">
-              Melhorar não é trocar uma imagem. É reduzir o esforço para
-              entender e agir.
+        <section id="tese" className="thesis" aria-labelledby="thesis-title">
+          <div className="section-index">
+            <span>01</span>
+            <p>Tese</p>
+          </div>
+
+          <div className="thesis-heading">
+            <h2 id="thesis-title">
+              O site da clínica começa a conversa antes da equipe.
             </h2>
           </div>
 
-          <div className="opportunity-list">
-            {opportunities.map((item) => (
-              <article className="opportunity" key={item.title}>
-                <h3>{item.title}</h3>
-                <p>{item.observation}</p>
-                <p className="opportunity__improvement">{item.improvement}</p>
+          <div className="thesis-intro">
+            <p>
+              Quando a estrutura envelhece, a clínica pode parecer menos clara,
+              cuidadosa ou atual do que realmente é.
+            </p>
+            <p>
+              Modernizar não é apagar o que existe. É tornar o valor da clínica
+              legível, testável e aprovável antes de qualquer troca.
+            </p>
+          </div>
+
+          <div className="thesis-statement" aria-label="Princípio Atria">
+            <p>O que muda não começa no código.</p>
+            <h3>
+              Começa no modo como a clínica é percebida — e no controle sobre o
+              que será publicado.
+            </h3>
+          </div>
+
+          <div className="opportunity-list" aria-label="Oportunidades da modernização">
+            {opportunities.map((opportunity, index) => (
+              <article key={opportunity.label} className="opportunity-row">
+                <span>{String(index + 1).padStart(2, "0")}</span>
+                <p>{opportunity.label}</p>
+                <h3>{opportunity.title}</h3>
+                <p>{opportunity.copy}</p>
+              </article>
+            ))}
+          </div>
+
+          <div className="thesis-action">
+            <p>Uma direção concreta reduz a distância entre imaginar e decidir.</p>
+            <RequestPreviewLink className="editorial-link editorial-link--primary">
+              Solicitar uma prévia do meu site
+            </RequestPreviewLink>
+          </div>
+        </section>
+
+        <section id="metodo" className="method" aria-labelledby="method-title">
+          <header className="method-heading">
+            <div className="section-index">
+              <span>02</span>
+              <p>Como funciona</p>
+            </div>
+            <h2 id="method-title">Método</h2>
+          </header>
+
+          <div className="method-panels">
+            {methodSteps.map((item, index) => (
+              <article
+                key={item.phase}
+                className={`method-panel method-panel--${index + 1}`}
+              >
+                <header className="method-panel__header">
+                  <span>{String(index + 1).padStart(2, "0")}</span>
+                  <p>{item.phase}</p>
+                </header>
+
+                <div className="method-panel__body">
+                  <div className="method-panel__copy">
+                    <h3>{item.title}</h3>
+                    <p>{item.summary}</p>
+                  </div>
+
+                  <MethodDiagram step={index + 1} />
+
+                  <dl className="method-responsibilities">
+                    <div>
+                      <dt>Clínica</dt>
+                      <dd>{item.clinic}</dd>
+                    </div>
+                    <div>
+                      <dt>Atria</dt>
+                      <dd>{item.atria}</dd>
+                    </div>
+                    <div>
+                      <dt>Controle</dt>
+                      <dd>{item.control}</dd>
+                    </div>
+                  </dl>
+                </div>
               </article>
             ))}
           </div>
         </section>
 
         <section
-          id="como-funciona"
-          className="method section-shell"
-          aria-labelledby="method-title"
+          id="comparacao"
+          className="comparison-proof"
+          aria-labelledby="comparison-title"
         >
-          <div className="method__heading">
-            <p className="section-context">Preview Seguro</p>
-            <h2 id="method-title">Uma decisão concreta, antes da mudança.</h2>
-            <p>
-              Você não precisa aprovar uma promessa abstrata. A conversa parte
-              de uma proposta que pode ser vista, revisada e ajustada.
-            </p>
+          <div className="comparison-proof__heading">
+            <h2 id="comparison-title">Atual / Proposta</h2>
+            <p>Uma decisão concreta, não uma promessa abstrata.</p>
           </div>
+          <CurrentProposalStage />
 
-          <ol className="process-list">
-            {process.map((step) => (
-              <li key={step.title}>
-                <h3>{step.title}</h3>
-                <p>{step.copy}</p>
-              </li>
-            ))}
-          </ol>
-
-          <div className="approval-checkpoint" aria-label="Aprovação antes da publicação">
-            <div className="approval-checkpoint__before">
-              <span>Proposta pronta para revisão</span>
-              <strong>Aguardando sua confirmação</strong>
+          <div className="comparison-diagnostics" aria-label="Leitura da transformação demonstrada">
+            <div className="comparison-diagnostics__heading">
+              <p>O que a proposta reorganiza</p>
+              <p>Exemplo ilustrativo, não resultado de uma clínica real.</p>
             </div>
-            <div className="approval-checkpoint__interval" aria-hidden="true" />
-            <div className="approval-checkpoint__after">
-              <span>Publicação técnica</span>
-              <strong>Bloqueada até sua aprovação</strong>
-            </div>
-            <p className="approval-checkpoint__status">
-              Publicação somente após sua aprovação.
-            </p>
-          </div>
-        </section>
-
-        <section
-          id="seguranca"
-          className="security section-shell"
-          aria-labelledby="security-title"
-        >
-          <div className="security__statement">
-            <p className="section-context">Controle durante todo o processo</p>
-            <h2 id="security-title">O seu site continua sendo seu.</h2>
-            <p>
-              A modernização acontece ao lado da versão atual. Você avalia o
-              que mudou, mantém o que faz sentido e só autoriza a publicação
-              quando estiver seguro da decisão.
-            </p>
-          </div>
-
-          <div className="assurance-list">
-            {assurances.map((item) => (
-              <article key={item.title}>
-                <h3>{item.title}</h3>
-                <p>{item.copy}</p>
+            {diagnostics.map((item, index) => (
+              <article key={item.dimension} className="diagnostic-row">
+                <span>{String(index + 1).padStart(2, "0")}</span>
+                <h3>{item.dimension}</h3>
+                <div>
+                  <p>Atual</p>
+                  <p>{item.current}</p>
+                </div>
+                <div>
+                  <p>Proposta</p>
+                  <p>{item.proposal}</p>
+                </div>
               </article>
             ))}
           </div>
         </section>
 
-        <section
-          id="solicitar"
-          className="request section-shell"
-          aria-labelledby="request-title"
-        >
-          <div className="request__intro">
-            <p className="section-context">Solicitar uma prévia</p>
+        <section id="seguranca" className="assurance" aria-labelledby="assurance-title">
+          <div className="assurance-opening">
+            <div className="section-index">
+              <span>04</span>
+              <p>Segurança operacional</p>
+            </div>
+            <h2 id="assurance-title">Nada muda sem sua aprovação.</h2>
+            <p>
+              A modernização acontece ao lado do site atual. A clínica vê,
+              revisa e confirma a versão antes da publicação.
+            </p>
+          </div>
+
+          <div className="assurance-threshold" aria-hidden="true">
+            <div>
+              <span>Atual</span>
+              <span>Em funcionamento</span>
+            </div>
+            <i><span>Aprovado</span></i>
+            <div>
+              <span>Novo site</span>
+              <span>Pronto para publicar</span>
+            </div>
+          </div>
+
+          <div className="assurance-index">
+            <div className="assurance-index__heading">
+              <p>Compromissos do serviço</p>
+              <p>O que a clínica pode esperar do processo Atria.</p>
+            </div>
+            {assurances.map(([title, copy], index) => (
+              <article key={title} className="assurance-row">
+                <span>{String(index + 1).padStart(2, "0")}</span>
+                <h3>{title}</h3>
+                <p>{copy}</p>
+                <span aria-hidden="true">↗</span>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section id="solicitar" className="request-section" aria-labelledby="request-title">
+          <div className="request-intro">
+            <div className="section-index section-index--inverse">
+              <span>05</span>
+              <p>Solicitar prévia</p>
+            </div>
             <h2 id="request-title" tabIndex={-1}>
-              Comece pelo site que sua clínica já tem.
+              Veja primeiro. Decida depois.
             </h2>
             <p>
-              Envie o endereço atual e um contexto breve. A primeira conversa
-              serve para entender o cenário e explicar os próximos passos —
-              sem alterar nada no seu site.
+              Conte qual é o site da sua clínica. A solicitação abaixo é uma
+              demonstração local: nenhum dado será enviado.
             </p>
-            <div className="request__notes">
-              <p>Não pedimos acesso ao domínio nesta etapa.</p>
-              <p>Não envie dados de pacientes ou informações de saúde.</p>
-            </div>
+            <dl>
+              <div>
+                <dt>Entrada</dt>
+                <dd>Site atual e contexto essencial</dd>
+              </div>
+              <div>
+                <dt>Próxima etapa</dt>
+                <dd>Análise e direção para uma prévia</dd>
+              </div>
+              <div>
+                <dt>Publicação</dt>
+                <dd>Somente depois da aprovação</dd>
+              </div>
+            </dl>
           </div>
 
           <RequestForm />
         </section>
+
+        <section className="closing-statement" aria-labelledby="closing-title">
+          <p>Modernização digital para clínicas</p>
+          <h2 id="closing-title">
+            Seu novo site, <em>aprovado antes</em> de ir ao ar.
+          </h2>
+        </section>
       </main>
 
-      <footer className="footer">
-        <div>
-          <a className="wordmark" href="#conteudo-principal" aria-label="Atria, início">
-            Atria
-          </a>
-          <p>Modernização digital para clínicas</p>
+      <footer className="site-footer page-frame">
+        <div className="site-footer__top">
+          <p>Atria</p>
+          <nav aria-label="Navegação do rodapé">
+            <a href="#tese">Por que mudar</a>
+            <a href="#metodo">Como funciona</a>
+            <a href="#comparacao">Atual / Proposta</a>
+            <a href="#seguranca">Segurança</a>
+          </nav>
+          <RequestPreviewLink className="footer-request">
+            Solicitar prévia ↗
+          </RequestPreviewLink>
         </div>
-        <p className="footer__promise">
-          Seu novo site, aprovado antes de ir ao ar.
-        </p>
-        <p className="footer__legal">
-          Atria não é uma clínica nem presta atendimento médico.
-        </p>
+
+        <div className="site-footer__signature" aria-hidden="true">Atria</div>
+
+        <div className="site-footer__bottom">
+          <p>Produto B2B para modernização de sites de clínicas no Brasil.</p>
+          <p>Protótipo interno de paridade · 2026</p>
+          <a href="#visao">Voltar ao início ↑</a>
+        </div>
       </footer>
     </>
   );
