@@ -83,6 +83,18 @@ describe("submitLeadWithDependencies", () => {
     assert.equal(result.status, "spam_rejected");
   });
 
+  it("returns configuration_error when Turnstile is missing in production mode", async () => {
+    const result = await submitLeadWithDependencies(
+      validPayload,
+      createDeps({
+        verifyTurnstile: async () => ({ ok: false, reason: "configuration" }),
+      }),
+    );
+    assert.equal(result.status, "configuration_error");
+    if (result.status !== "configuration_error") return;
+    assert.match(result.message, /WhatsApp|disponível|mais tarde/i);
+  });
+
   it("returns configuration_error when persistence is unavailable", async () => {
     const result = await submitLeadWithDependencies(
       validPayload,
@@ -95,6 +107,35 @@ describe("submitLeadWithDependencies", () => {
       }),
     );
     assert.equal(result.status, "configuration_error");
+    if (result.status !== "configuration_error") return;
+    assert.notEqual(result.status, "success");
+  });
+
+  it("returns service_unavailable when Supabase persistence fails", async () => {
+    const result = await submitLeadWithDependencies(
+      validPayload,
+      createDeps({
+        persistLead: async () => ({ ok: false, reason: "unavailable" }),
+      }),
+    );
+    assert.equal(result.status, "service_unavailable");
+    if (result.status !== "service_unavailable") return;
+    assert.doesNotMatch(JSON.stringify(result), /supabase|postgres|SELECT/i);
+  });
+
+  it("does not pass the Turnstile token into persistence", async () => {
+    let storedToken: string | null | undefined = "unset";
+    const result = await submitLeadWithDependencies(
+      validPayload,
+      createDeps({
+        persistLead: async (payload) => {
+          storedToken = payload.lead.turnstileToken;
+          return { ok: true, leadId: "lead-123", duplicate: false };
+        },
+      }),
+    );
+    assert.equal(result.status, "success");
+    assert.equal(storedToken, null);
   });
 
   it("keeps success when notification fails after persistence", async () => {

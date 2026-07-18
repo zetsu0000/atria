@@ -54,6 +54,13 @@ describe("parseLeadInput", () => {
     assert.match(result.fieldErrors.siteUrl ?? "", /http/i);
   });
 
+  it("rejects invalid WhatsApp", () => {
+    const result = parseLeadInput({ ...validPayload, whatsapp: "123" });
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.match(result.fieldErrors.whatsapp ?? "", /DDD|WhatsApp/i);
+  });
+
   it("rejects excessive field length", () => {
     const result = parseLeadInput({
       ...validPayload,

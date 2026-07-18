@@ -124,8 +124,13 @@ export async function submitLeadWithDependencies(
     }
 
     const consentAt = (deps.now?.() ?? new Date()).toISOString();
+    // Never hand the anti-spam token to persistence or notification payloads.
+    const leadForStorage: ParsedLead = {
+      ...parsed.data,
+      turnstileToken: null,
+    };
     const persisted = await deps.persistLead({
-      lead: parsed.data,
+      lead: leadForStorage,
       dedupHash,
       consentAt,
     });
@@ -151,7 +156,7 @@ export async function submitLeadWithDependencies(
     }
 
     const notification = await deps.notifyLeadReceived({
-      lead: parsed.data,
+      lead: leadForStorage,
       leadId: persisted.leadId,
       submittedAt: consentAt,
     });

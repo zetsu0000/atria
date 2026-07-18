@@ -1,0 +1,134 @@
+{
+  "routes": {
+    "/@1440x900": {
+      "ok": true,
+      "detail": "status=200 overflow=0px title=Atria — Modernização digital para clínicas h1=Seu novo site,aprovado antes de ir ao ar."
+    },
+    "/@390x844": {
+      "ok": true,
+      "detail": "status=200 overflow=0px title=Atria — Modernização digital para clínicas h1=Seu novo site,aprovado antes de ir ao ar."
+    },
+    "/previa/clinica-aurora@1440x900": {
+      "ok": true,
+      "detail": "status=200 overflow=0px title=Prévia demonstrativa — Clínica Aurora · Atria h1=Uma prévia como a que sua clínica recebe."
+    },
+    "/previa/clinica-aurora@390x844": {
+      "ok": true,
+      "detail": "status=200 overflow=0px title=Prévia demonstrativa — Clínica Aurora · Atria h1=Uma prévia como a que sua clínica recebe."
+    },
+    "/privacidade@1440x900": {
+      "ok": true,
+      "detail": "status=200 overflow=0px title=Privacidade · Atria h1=Aviso de privacidade"
+    },
+    "/privacidade@390x844": {
+      "ok": true,
+      "detail": "status=200 overflow=0px title=Privacidade · Atria h1=Aviso de privacidade"
+    },
+    "/termos@1440x900": {
+      "ok": true,
+      "detail": "status=200 overflow=0px title=Termos de uso · Atria h1=Termos de uso"
+    },
+    "/termos@390x844": {
+      "ok": true,
+      "detail": "status=200 overflow=0px title=Termos de uso · Atria h1=Termos de uso"
+    }
+  },
+  "form": {
+    "present": {
+      "ok": true,
+      "detail": "found"
+    },
+    "consentUncheckedByDefault": {
+      "ok": true,
+      "detail": "checked=false"
+    },
+    "field:name": {
+      "ok": true,
+      "detail": "count=1"
+    },
+    "field:clinic": {
+      "ok": true,
+      "detail": "count=1"
+    },
+    "field:role": {
+      "ok": true,
+      "detail": "count=1"
+    },
+    "field:location": {
+      "ok": true,
+      "detail": "count=1"
+    },
+    "field:siteUrl": {
+      "ok": true,
+      "detail": "count=1"
+    },
+    "field:whatsapp": {
+      "ok": true,
+      "detail": "count=1"
+    },
+    "field:email": {
+      "ok": true,
+      "detail": "count=1"
+    },
+    "field:consent": {
+      "ok": true,
+      "detail": "count=1"
+    },
+    "errorSummaryVisible": {
+      "ok": true,
+      "detail": ""
+    },
+    "errorSummaryFocus": {
+      "ok": true,
+      "detail": "active=form-error-summary"
+    },
+    "fieldErrorAssociation": {
+      "ok": true,
+      "detail": "aria-describedby=name-error aria-invalid=true"
+    },
+    "liveRegion": {
+      "ok": true,
+      "detail": "aria-live=polite"
+    },
+    "noFakeSuccessWithoutCredentials": {
+      "ok": true,
+      "detail": "result=Não foi possível concluirEnvio não concluído.O envio ainda não está disponível. Tente novamente mais tarde ou use o What"
+    },
+    "serviceUnavailableOrConfigState": {
+      "ok": true,
+      "detail": "visible=true text=Não foi possível concluirEnvio não concluído.O envio ainda não está disponível. Tente novamente mais tarde ou use o What"
+    },
+    "recoverablePreservesData": {
+      "ok": true,
+      "detail": "before=Ana Verificação after=Ana Verificação"
+    },
+    "submitControlState": {
+      "ok": true,
+      "detail": "disabledAfterAttempt=false"
+    },
+    "visibleFocus": {
+      "ok": true,
+      "detail": ""
+    },
+    "keyboardNavigation": {
+      "ok": true,
+      "detail": "path=clinic→role→location→siteUrl→whatsapp→email"
+    },
+    "consoleErrors": {
+      "ok": true,
+      "detail": "none"
+    }
+  },
+  "viewports": {
+    "reducedMotion": {
+      "ok": true,
+      "detail": "overflow=0px"
+    },
+    "zoom200approx": {
+      "ok": true,
+      "detail": "overflow=0px at 720css/2x"
+    }
+  },
+  "consoleErrors": [],
+  "defects": []
+}
