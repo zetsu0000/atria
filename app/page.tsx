@@ -3,6 +3,10 @@ import { AtriaHeader } from "@/components/landing/atria-header";
 import { CurrentProposalStage } from "@/components/landing/current-proposal-stage";
 import { RequestForm } from "@/components/landing/request-form";
 import { RequestPreviewLink } from "@/components/landing/request-preview-link";
+import {
+  WhatsAppFloat,
+  WhatsAppRequestAlternative,
+} from "@/components/landing/whatsapp";
 
 const chapters = [
   {
@@ -429,6 +433,7 @@ export default function Home() {
                 <dd>Somente depois da aprovação</dd>
               </div>
             </dl>
+            <WhatsAppRequestAlternative />
           </div>
 
           <RequestForm />
@@ -437,9 +442,11 @@ export default function Home() {
         <section className="closing-statement" aria-labelledby="closing-title">
           <p>Modernização digital para clínicas</p>
           <h2 id="closing-title">
-            Seu novo site, <em>aprovado antes</em> de ir ao ar.
+            Um site que <em>fortalece a imagem</em> da sua clínica.
           </h2>
         </section>
+
+        <WhatsAppFloat />
       </main>
 
       <footer className="site-footer page-frame">

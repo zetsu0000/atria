@@ -290,15 +290,36 @@ textarea:focus-visible,
   place-items: center;
 }
 
+/* Threshold mark: outlined plane (atual) -> accent line -> solid plane (aprovado). */
 .menu-primary__signal span {
-  width: clamp(5rem, 9vw, 8rem);
-  aspect-ratio: 1;
-  border: 1px solid var(--ink-soft);
-  border-radius: 50%;
-  background:
-    linear-gradient(90deg, transparent 48%, var(--accent) 48% 52%, transparent 52%),
-    linear-gradient(transparent 48%, var(--accent) 48% 52%, transparent 52%);
-  transform: rotate(45deg);
+  position: relative;
+  width: clamp(6rem, 10vw, 9rem);
+  height: clamp(3.4rem, 5.6vw, 5rem);
+  background: linear-gradient(
+    90deg,
+    transparent calc(50% - 1px),
+    var(--accent) calc(50% - 1px) calc(50% + 1px),
+    transparent calc(50% + 1px)
+  );
+}
+
+.menu-primary__signal span::before,
+.menu-primary__signal span::after {
+  content: "";
+  position: absolute;
+  top: 12%;
+  bottom: 12%;
+  width: 38%;
+}
+
+.menu-primary__signal span::before {
+  left: 0;
+  border: 1px solid oklch(1 0 0 / 0.45);
+}
+
+.menu-primary__signal span::after {
+  right: 0;
+  background: oklch(1 0 0 / 0.88);
 }
 
 .menu-primary ul {
@@ -2048,6 +2069,53 @@ textarea:focus-visible,
   font-style: normal;
 }
 
+/* Below the fullscreen menu (z 30) and header (z 40); above page content. */
+.whatsapp-float {
+  position: fixed;
+  z-index: 25;
+  right: clamp(1rem, 2vw, 1.8rem);
+  bottom: clamp(1rem, 2vw, 1.8rem);
+  min-height: 2.75rem;
+  padding: 0.7rem 1.2rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  border-radius: 999px;
+  border: 1px solid oklch(1 0 0 / 0.14);
+  background: var(--inverse);
+  color: var(--inverse-ink);
+  text-decoration: none;
+  font-size: 0.78rem;
+  box-shadow: 0 0.4rem 1.4rem oklch(0 0 0 / 0.22);
+  transition:
+    background-color 240ms var(--ease-out),
+    transform 240ms var(--ease-out);
+}
+
+.whatsapp-float:hover {
+  background: var(--accent);
+  transform: translateY(-0.08rem);
+}
+
+.whatsapp-float svg {
+  width: 1.05rem;
+  height: 1.05rem;
+  fill: currentColor;
+}
+
+.request-intro > .request-intro__whatsapp {
+  margin: clamp(2rem, 3.5vw, 3.5rem) 0 0;
+  color: oklch(0.7 0 0);
+  font-size: 0.86rem;
+}
+
+.request-intro__whatsapp a {
+  color: var(--inverse-ink);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.3rem;
+}
+
 .site-footer {
   padding: clamp(5rem, 8vw, 8rem) var(--gutter) 1.5rem;
   border-top: 1px solid var(--line);
@@ -2586,7 +2654,8 @@ textarea:focus-visible,
   }
 
   .menu-primary__signal span {
-    width: 3.6rem;
+    width: 4.2rem;
+    height: 2.4rem;
   }
 
   .menu-primary li a {
