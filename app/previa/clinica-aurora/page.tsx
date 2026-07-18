@@ -5,10 +5,22 @@ import { CurrentProposalStage } from "@/components/landing/current-proposal-stag
 import { PreviewHeader } from "@/components/preview/preview-header";
 
 export const metadata: Metadata = {
-  title: "Prévia demonstrativa — Clínica Aurora | Atria",
+  title: "Prévia demonstrativa — Clínica Aurora",
   description:
-    "Exemplo do formato de prévia da Atria: o site atual ao lado da proposta, com aprovação antes de qualquer publicação. Demonstração fictícia.",
-};
+    "Exemplo fictício do formato de prévia da Atria: o site atual ao lado da proposta, com aprovação antes de qualquer publicação. Não representa uma clínica real.",
+  alternates: {
+    canonical: "/previa/clinica-aurora",
+  },
+  openGraph: {
+    title: "Prévia demonstrativa — Clínica Aurora · Atria",
+    description:
+      "Demonstração fictícia do formato de prévia da Atria. Não representa uma clínica real nem resultados prometidos.",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+}
 
 const changes = [
   {
