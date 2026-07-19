@@ -71,7 +71,7 @@ describe("parseLeadInput", () => {
     assert.equal(result.fieldErrors.name, "Use um nome mais curto.");
   });
 
-  it("rejects unexpected fields", () => {
+  it("continues to reject unexpected fields outside the known form payload", () => {
     const result = parseLeadInput({
       ...validPayload,
       patientName: "should-not-pass",

@@ -5,6 +5,7 @@ import { useEffect, useId, useRef } from "react";
 type TurnstileFieldProps = {
   siteKey: string;
   onTokenChange: (token: string | null) => void;
+  error?: string;
   onError?: () => void;
 };
 
@@ -61,6 +62,7 @@ function loadTurnstileScript(): Promise<void> {
 export function TurnstileField({
   siteKey,
   onTokenChange,
+  error,
   onError,
 }: TurnstileFieldProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -109,7 +111,15 @@ export function TurnstileField({
   }, [siteKey, onTokenChange, onError]);
 
   return (
-    <div className="turnstile-field">
+    <div
+      id="turnstileToken"
+      className="turnstile-field"
+      role="group"
+      aria-labelledby={labelId}
+      aria-describedby={error ? "turnstileToken-error" : undefined}
+      data-invalid={error ? "true" : undefined}
+      tabIndex={-1}
+    >
       <p id={labelId} className="turnstile-field__label">
         Verificação antiabuso
       </p>
@@ -118,6 +128,11 @@ export function TurnstileField({
         className="turnstile-field__widget"
         aria-labelledby={labelId}
       />
+      {error ? (
+        <span id="turnstileToken-error" className="field-error">
+          {error}
+        </span>
+      ) : null}
     </div>
   );
 }

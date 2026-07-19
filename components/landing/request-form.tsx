@@ -10,23 +10,17 @@ import {
   useTransition,
 } from "react";
 import { TurnstileField } from "@/components/landing/turnstile-field";
+import {
+  prepareLeadFormData,
+  type RequestFormErrors,
+  type RequestFormFieldName,
+  validateRequestForm,
+} from "@/lib/leads/request-form";
 import { submitLead } from "@/lib/leads/submit-lead";
 import type { LeadSubmitResult } from "@/lib/leads/types";
 
-type FieldName =
-  | "name"
-  | "clinic"
-  | "role"
-  | "location"
-  | "siteUrl"
-  | "whatsapp"
-  | "email"
-  | "concern"
-  | "consent"
-  | "turnstileToken"
-  | "form";
-
-type FormErrors = Partial<Record<FieldName, string>>;
+type FieldName = RequestFormFieldName;
+type FormErrors = RequestFormErrors;
 
 type UiStatus =
   | "idle"
@@ -40,7 +34,7 @@ type UiStatus =
   | "success"
   | "server_error";
 
-const fieldLabels: Record<Exclude<FieldName, "form" | "turnstileToken" | "concern">, string> = {
+const fieldLabels: Record<Exclude<FieldName, "form" | "concern">, string> = {
   name: "Nome",
   clinic: "Clínica",
   role: "Função",
@@ -49,57 +43,10 @@ const fieldLabels: Record<Exclude<FieldName, "form" | "turnstileToken" | "concer
   whatsapp: "WhatsApp",
   email: "E-mail",
   consent: "Consentimento",
+  turnstileToken: "Verificação de segurança",
 };
 
 const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim() || "";
-
-function hasHttpProtocol(value: string) {
-  try {
-    const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
-
-function validateClient(formData: FormData): FormErrors {
-  const value = (name: FieldName) => String(formData.get(name) ?? "").trim();
-  const errors: FormErrors = {};
-
-  if (!value("name")) errors.name = "Informe seu nome.";
-  if (!value("clinic")) errors.clinic = "Informe o nome da clínica.";
-  if (!value("role")) errors.role = "Selecione sua função.";
-  if (!value("location")) errors.location = "Informe a cidade e o estado.";
-
-  const siteUrl = value("siteUrl");
-  if (!siteUrl) {
-    errors.siteUrl = "Informe o endereço do site atual.";
-  } else if (!hasHttpProtocol(siteUrl)) {
-    errors.siteUrl =
-      "Use um endereço completo, começando com http:// ou https://.";
-  }
-
-  const whatsappDigits = value("whatsapp").replace(/\D/g, "");
-  if (!whatsappDigits) {
-    errors.whatsapp = "Informe um WhatsApp para contato.";
-  } else if (whatsappDigits.length < 10 || whatsappDigits.length > 13) {
-    errors.whatsapp = "Informe um número com DDD válido.";
-  }
-
-  const email = value("email");
-  if (!email) {
-    errors.email = "Informe seu e-mail.";
-  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    errors.email = "Informe um e-mail válido.";
-  }
-
-  if (formData.get("consent") !== "on") {
-    errors.consent =
-      "Confirme que a Atria pode analisar o site informado e entrar em contato.";
-  }
-
-  return errors;
-}
 
 function FieldError({ name, errors }: { name: FieldName; errors: FormErrors }) {
   if (!errors[name]) return null;
@@ -134,6 +81,19 @@ export function RequestForm() {
 
   const handleTokenChange = useCallback((token: string | null) => {
     setTurnstileToken(token);
+
+    if (token) {
+      setErrors((currentErrors) => {
+        if (!currentErrors.turnstileToken) return currentErrors;
+
+        const nextErrors = { ...currentErrors };
+        delete nextErrors.turnstileToken;
+        return nextErrors;
+      });
+      setStatus((currentStatus) =>
+        currentStatus === "validation_error" ? "idle" : currentStatus,
+      );
+    }
   }, []);
 
   function focusStatus(hasFieldErrors: boolean) {
@@ -152,7 +112,11 @@ export function RequestForm() {
 
     const form = event.currentTarget;
     const formData = new FormData(form);
-    const clientErrors = validateClient(formData);
+    const turnstileConfigured = Boolean(turnstileSiteKey);
+    const clientErrors = validateRequestForm(formData, {
+      turnstileConfigured,
+      turnstileToken,
+    });
 
     if (Object.keys(clientErrors).length > 0) {
       setErrors(clientErrors);
@@ -162,10 +126,10 @@ export function RequestForm() {
       return;
     }
 
-    if (turnstileSiteKey) {
-      formData.set("turnstileToken", turnstileToken ?? "");
-    }
-    formData.set("source", "landing-solicitar");
+    prepareLeadFormData(formData, {
+      turnstileConfigured,
+      turnstileToken,
+    });
 
     setErrors({});
     setStatus("submitting");
@@ -204,7 +168,7 @@ export function RequestForm() {
 
   const summaryEntries = (
     Object.keys(errors) as FieldName[]
-  ).filter((name) => name !== "form" && name !== "turnstileToken" && name !== "concern");
+  ).filter((name) => name !== "form" && name !== "concern");
 
   return (
     <form
@@ -407,6 +371,7 @@ export function RequestForm() {
         <TurnstileField
           siteKey={turnstileSiteKey}
           onTokenChange={handleTokenChange}
+          error={errors.turnstileToken}
         />
       ) : null}
 
