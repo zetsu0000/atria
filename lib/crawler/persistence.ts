@@ -230,6 +230,50 @@ export async function listCrawlJobsForLead(
   }
 }
 
+/**
+ * Latest crawl job per lead (by created_at). Conservative helper for list UIs.
+ */
+export async function listLatestCrawlJobsForLeads(
+  leadIds: string[],
+  env: LeadCaptureEnv = readLeadCaptureEnv(),
+): Promise<
+  | { ok: true; jobsByLeadId: Record<string, CrawlJobRecord | null> }
+  | { ok: false; reason: "configuration" | "unavailable" }
+> {
+  const jobsByLeadId: Record<string, CrawlJobRecord | null> = {};
+  for (const id of leadIds) jobsByLeadId[id] = null;
+
+  if (leadIds.length === 0) {
+    return { ok: true, jobsByLeadId };
+  }
+
+  if (!hasPersistenceConfig(env)) return { ok: false, reason: "configuration" };
+  const client = createServiceClient(env);
+  if (!client) return { ok: false, reason: "configuration" };
+
+  try {
+    const { data, error } = await client
+      .from("crawl_jobs")
+      .select("*")
+      .in("lead_id", leadIds)
+      .order("created_at", { ascending: false })
+      .limit(Math.min(leadIds.length * 3, 150));
+
+    if (error) return { ok: false, reason: "unavailable" };
+
+    for (const row of (data as DbJob[] | null) ?? []) {
+      const job = mapJob(row);
+      if (!jobsByLeadId[job.leadId]) {
+        jobsByLeadId[job.leadId] = job;
+      }
+    }
+
+    return { ok: true, jobsByLeadId };
+  } catch {
+    return { ok: false, reason: "unavailable" };
+  }
+}
+
 export async function claimCrawlJob(
   jobId: string,
   env: LeadCaptureEnv = readLeadCaptureEnv(),

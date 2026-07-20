@@ -9,6 +9,7 @@ import {
   deleteCrawlJob,
   getCrawlJob,
   listCrawlJobsForLead,
+  listLatestCrawlJobsForLeads,
   listCrawlPages,
 } from "@/lib/crawler/persistence";
 import { runCrawlJob } from "@/lib/crawler/run-crawl";
@@ -53,6 +54,13 @@ export async function opListCrawlJobsForLead(
   env: LeadCaptureEnv = readLeadCaptureEnv(),
 ) {
   return listCrawlJobsForLead(leadId, env);
+}
+
+export async function opListLatestCrawlJobsForLeads(
+  leadIds: string[],
+  env: LeadCaptureEnv = readLeadCaptureEnv(),
+) {
+  return listLatestCrawlJobsForLeads(leadIds, env);
 }
 
 export async function opExecuteCrawlJob(

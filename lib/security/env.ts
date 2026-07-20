@@ -58,3 +58,37 @@ export function hasTurnstileConfig(env: LeadCaptureEnv = readLeadCaptureEnv()): 
 export function logConfigWarning(code: string): void {
   console.warn(`[atria:leads] configuration_warning code=${code}`);
 }
+
+export type OperatorAuthEnv = {
+  supabaseUrl: string | null;
+  /** Anon key used only to validate user JWTs server-side. Never use service role in the browser. */
+  supabaseAnonKey: string | null;
+  /** Comma-separated allow-list of operator emails (lowercase match). */
+  operatorEmails: string[];
+};
+
+export function readOperatorAuthEnv(): OperatorAuthEnv {
+  const emailsRaw = readOptional("OPERATIONS_OPERATOR_EMAILS");
+  const operatorEmails = emailsRaw
+    ? emailsRaw
+        .split(",")
+        .map((email) => email.trim().toLowerCase())
+        .filter(Boolean)
+    : [];
+
+  return {
+    supabaseUrl: readOptional("SUPABASE_URL"),
+    supabaseAnonKey:
+      readOptional("SUPABASE_ANON_KEY") ??
+      readOptional("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
+    operatorEmails,
+  };
+}
+
+export function hasOperatorAuthConfig(
+  env: OperatorAuthEnv = readOperatorAuthEnv(),
+): boolean {
+  return Boolean(
+    env.supabaseUrl && env.supabaseAnonKey && env.operatorEmails.length > 0,
+  );
+}

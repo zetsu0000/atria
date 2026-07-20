@@ -61,4 +61,33 @@ describe("request form submission preparation", () => {
     assert.equal(errors.turnstileToken, undefined);
     assert.equal(Object.keys(errors).length, 0);
   });
+
+  it("accepts a bare domain for siteUrl and normalizes https://", () => {
+    const formData = createValidFormData();
+    formData.set("siteUrl", "www.suaclinica.com.br");
+
+    const errors = validateRequestForm(formData, {
+      turnstileConfigured: false,
+      turnstileToken: null,
+    });
+    assert.equal(errors.siteUrl, undefined);
+
+    const prepared = prepareLeadFormData(formData, {
+      turnstileConfigured: false,
+      turnstileToken: null,
+    });
+    assert.equal(prepared.get("siteUrl"), "https://www.suaclinica.com.br/");
+  });
+
+  it("rejects an implausible siteUrl without inventing a protocol requirement message", () => {
+    const formData = createValidFormData();
+    formData.set("siteUrl", "clinica");
+
+    const errors = validateRequestForm(formData, {
+      turnstileConfigured: false,
+      turnstileToken: null,
+    });
+    assert.match(errors.siteUrl ?? "", /site válido/i);
+    assert.doesNotMatch(errors.siteUrl ?? "", /http:\/\/ ou https:\/\//i);
+  });
 });

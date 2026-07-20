@@ -202,13 +202,16 @@ export function RequestForm() {
           role="alert"
           tabIndex={-1}
         >
-          <h3>Revise os campos indicados.</h3>
+          <p className="form-error-summary__eyebrow">Atenção no formulário</p>
+          <h3>Revise os campos indicados</h3>
           <ul>
             {summaryEntries.map((name) => (
               <li key={name}>
                 <a href={`#${name}`}>
-                  {(fieldLabels as Record<string, string>)[name] ?? name}:{" "}
-                  {errors[name]}
+                  <strong>
+                    {(fieldLabels as Record<string, string>)[name] ?? name}
+                  </strong>
+                  <span>{errors[name]}</span>
                 </a>
               </li>
             ))}
@@ -287,14 +290,14 @@ export function RequestForm() {
         </label>
 
         <label className="form-field form-field--wide" htmlFor="siteUrl">
-          <span>URL do site atual *</span>
+          <span>Site atual *</span>
           <input
             id="siteUrl"
             name="siteUrl"
-            type="url"
+            type="text"
             inputMode="url"
             autoComplete="url"
-            placeholder="https://www.suaclinica.com.br"
+            placeholder="www.suaclinica.com.br"
             maxLength={2048}
             disabled={submitting || status === "success"}
             aria-invalid={invalid("siteUrl")}
@@ -398,17 +401,17 @@ export function RequestForm() {
           role={resultTone(status) === "success" ? "status" : "alert"}
           tabIndex={-1}
         >
-          <p>
+          <p className="form-result__eyebrow">
             {status === "success"
               ? "Solicitação registrada"
               : "Não foi possível concluir"}
           </p>
           <h3>
             {status === "success"
-              ? "Recebemos seu pedido de prévia."
-              : "Envio não concluído."}
+              ? "Recebemos seu pedido de prévia"
+              : "Envio não concluído"}
           </h3>
-          <p>{statusMessage}</p>
+          <p className="form-result__body">{statusMessage}</p>
         </div>
       )}
     </form>

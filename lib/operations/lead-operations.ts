@@ -3,6 +3,11 @@
  * Not exposed via public unauthenticated routes.
  */
 import {
+  getLead,
+  listLeads,
+  type ListLeadsOptions,
+} from "@/lib/leads/query";
+import {
   listLeadStatusHistory,
   updateLeadStatus,
 } from "@/lib/leads/status-operations";
@@ -14,6 +19,20 @@ import {
   readLeadCaptureEnv,
   type LeadCaptureEnv,
 } from "@/lib/security/env";
+
+export async function opListLeads(
+  options: ListLeadsOptions = {},
+  env: LeadCaptureEnv = readLeadCaptureEnv(),
+) {
+  return listLeads(options, env);
+}
+
+export async function opGetLead(
+  leadId: string,
+  env: LeadCaptureEnv = readLeadCaptureEnv(),
+) {
+  return getLead(leadId, env);
+}
 
 export async function opUpdateLeadStatus(
   input: StatusChangeInput,
@@ -29,8 +48,8 @@ export async function opListLeadStatusHistory(
   return listLeadStatusHistory(leadId, env);
 }
 
-export function opListAllowedLeadTransitions(fromStatus: Parameters<
-  typeof listAllowedTransitions
->[0]) {
+export function opListAllowedLeadTransitions(
+  fromStatus: Parameters<typeof listAllowedTransitions>[0],
+) {
   return listAllowedTransitions(fromStatus);
 }

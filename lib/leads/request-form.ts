@@ -20,13 +20,32 @@ export const TURNSTILE_REQUIRED_MESSAGE =
 
 const CLOUDFLARE_TURNSTILE_FIELD = "cf-turnstile-response";
 
-function hasHttpProtocol(value: string) {
+/** Accepts full URLs or bare domains (www.clinica.com.br). */
+export function isPlausibleWebsiteInput(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed) return false;
   try {
-    const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:";
+    const withProtocol = /^https?:\/\//i.test(trimmed)
+      ? trimmed
+      : `https://${trimmed}`;
+    const url = new URL(withProtocol);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return false;
+    if (!url.hostname.includes(".")) return false;
+    if (url.username || url.password) return false;
+    return true;
   } catch {
     return false;
   }
+}
+
+export function normalizeWebsiteInput(value: string): string {
+  const trimmed = value.trim().replace(/\s+/g, " ");
+  const withProtocol = /^https?:\/\//i.test(trimmed)
+    ? trimmed
+    : `https://${trimmed}`;
+  const url = new URL(withProtocol);
+  url.hash = "";
+  return url.toString();
 }
 
 export function validateRequestForm(
@@ -48,9 +67,9 @@ export function validateRequestForm(
   const siteUrl = value("siteUrl");
   if (!siteUrl) {
     errors.siteUrl = "Informe o endereço do site atual.";
-  } else if (!hasHttpProtocol(siteUrl)) {
+  } else if (!isPlausibleWebsiteInput(siteUrl)) {
     errors.siteUrl =
-      "Use um endereço completo, começando com http:// ou https://.";
+      "Informe um site válido, como www.suaclinica.com.br.";
   }
 
   const whatsappDigits = value("whatsapp").replace(/\D/g, "");
@@ -90,6 +109,11 @@ export function prepareLeadFormData(
 
   if (options.turnstileConfigured && options.turnstileToken) {
     formData.set("turnstileToken", options.turnstileToken);
+  }
+
+  const siteUrl = String(formData.get("siteUrl") ?? "").trim();
+  if (siteUrl && isPlausibleWebsiteInput(siteUrl)) {
+    formData.set("siteUrl", normalizeWebsiteInput(siteUrl));
   }
 
   formData.set("source", "landing-solicitar");

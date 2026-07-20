@@ -1,3 +1,7 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+
 const WHATSAPP_MESSAGE =
   "Olá! Vim pelo site da Atria e quero uma prévia para o site da minha clínica.";
 
@@ -27,14 +31,69 @@ function WhatsAppIcon() {
 
 export function WhatsAppFloat() {
   const href = getWhatsAppHref();
+  const linkRef = useRef<HTMLAnchorElement>(null);
+  const [obscured, setObscured] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 37.5rem)");
+    let frame = 0;
+
+    function checkCollision() {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        const link = linkRef.current;
+
+        if (!link || !media.matches || document.activeElement === link) {
+          setObscured(false);
+          return;
+        }
+
+        const button = link.getBoundingClientRect();
+        const protectedElements = document.querySelectorAll<HTMLElement>(
+          ".page-frame > section :is(a, button, input, select, textarea), .request-section, .site-footer",
+        );
+        const collision = Array.from(protectedElements).some((element) => {
+          if (element === link || element.closest(".whatsapp-float")) {
+            return false;
+          }
+
+          const rect = element.getBoundingClientRect();
+          return (
+            rect.bottom > button.top - 8 &&
+            rect.top < button.bottom + 8 &&
+            rect.right > button.left - 8 &&
+            rect.left < button.right + 8
+          );
+        });
+
+        setObscured(collision);
+      });
+    }
+
+    checkCollision();
+    window.addEventListener("scroll", checkCollision, { passive: true });
+    window.addEventListener("resize", checkCollision);
+    media.addEventListener("change", checkCollision);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", checkCollision);
+      window.removeEventListener("resize", checkCollision);
+      media.removeEventListener("change", checkCollision);
+    };
+  }, []);
+
   if (!href) return null;
 
   return (
     <a
+      ref={linkRef}
       className="whatsapp-float"
       href={href}
       target="_blank"
       rel="noopener noreferrer"
+      aria-label="Conversar com a Atria pelo WhatsApp (abre em nova aba)"
+      data-obscured={obscured ? "true" : "false"}
     >
       <WhatsAppIcon />
       <span>WhatsApp</span>

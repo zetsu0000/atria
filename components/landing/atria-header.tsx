@@ -150,7 +150,10 @@ export function AtriaHeader() {
 
             <RequestPreviewLink
               className="menu-request"
-              onClick={closeMenu}
+              onClick={() => {
+                // Close first; RequestPreviewLink defers scroll until after paint.
+                closeMenu();
+              }}
             >
               Solicitar uma prévia do meu site
             </RequestPreviewLink>
