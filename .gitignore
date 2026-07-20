@@ -55,3 +55,7 @@ next-env.d.ts
 
 # local crawler fixture outputs (never commit real clinic screenshots)
 /artifacts/crawler/
+
+# Supabase CLI local state (never commit — local-only, may include local keys)
+/supabase/.branches/
+/supabase/.temp/
