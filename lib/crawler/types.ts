@@ -11,7 +11,8 @@ export const CRAWL_JOB_STATUSES = [
 
 export type CrawlJobStatus = (typeof CRAWL_JOB_STATUSES)[number];
 
-export const DEFAULT_MAX_PAGES = 10;
+/** PRODUCT / PROJECT_CRAWLER initial budget. */
+export const DEFAULT_MAX_PAGES = 8;
 export const HARD_MAX_PAGES = 20;
 export const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 export const HARD_MAX_RESPONSE_BYTES = 2 * 1024 * 1024;

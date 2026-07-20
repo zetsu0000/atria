@@ -92,4 +92,19 @@ describe("fetch-page", () => {
     if (!result.ok) assert.equal(result.code, "redirect_blocked");
     assert.equal(calls, 1);
   });
+
+  it("blocks redirects to metadata / private hosts", async () => {
+    const result = await fetchHtmlPage({
+      url: "https://clinic.example.com/",
+      allowedOrigin: "https://clinic.example.com",
+      lookupImpl: publicLookup,
+      fetchImpl: async () =>
+        new Response(null, {
+          status: 302,
+          headers: { location: "http://169.254.169.254/latest/meta-data/" },
+        }),
+    });
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.code, "redirect_blocked");
+  });
 });

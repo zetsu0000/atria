@@ -123,4 +123,24 @@ describe("url-policy", () => {
     assert.equal(shouldSkipPath("/photo.jpg"), true);
     assert.equal(shouldSkipPath("/servicos"), false);
   });
+
+  it("skips login and appointment portal paths", () => {
+    assert.equal(shouldSkipPath("/login"), true);
+    assert.equal(shouldSkipPath("/paciente/area"), true);
+    assert.equal(shouldSkipPath("/agendamento/novo"), true);
+    assert.equal(shouldSkipPath("/portal/cliente"), true);
+  });
+
+  it("blocks CGNAT and IPv4-mapped IPv6", () => {
+    assert.equal(isBlockedIpAddress("100.64.0.1"), true);
+    assert.equal(isBlockedIpAddress("::ffff:127.0.0.1"), true);
+  });
+
+  it("simulates DNS rebinding to metadata IP", async () => {
+    const result = await resolveAndValidatePublicUrl(
+      "https://clinic.example.com/",
+      async () => [{ address: "169.254.169.254", family: 4 }],
+    );
+    assert.equal(result.ok, false);
+  });
 });

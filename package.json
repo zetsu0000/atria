@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "test": "tsx --test lib/**/*.test.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "crawler:fixture": "tsx scripts/crawler-fixture.ts scan-fixture",
+    "crawler:validate-url": "tsx scripts/crawler-fixture.ts validate"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.7",

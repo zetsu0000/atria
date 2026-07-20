@@ -52,3 +52,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local crawler fixture outputs (never commit real clinic screenshots)
+/artifacts/crawler/

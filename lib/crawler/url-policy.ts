@@ -348,13 +348,28 @@ export function shouldSkipPath(pathname: string): boolean {
   if (
     path.includes("/logout") ||
     path.includes("/log-out") ||
+    path.includes("/login") ||
+    path.includes("/signin") ||
+    path.includes("/sign-in") ||
     path.includes("/admin") ||
     path.includes("/wp-admin") ||
     path.includes("/wp-login") ||
     path.includes("/cart") ||
     path.includes("/checkout") ||
     path.includes("/search") ||
-    path.includes("/cdn-cgi/")
+    path.includes("/cdn-cgi/") ||
+    path.includes("/agendamento") ||
+    path.includes("/agendar") ||
+    path.includes("/marcacao") ||
+    path.includes("/marcação") ||
+    path.includes("/portal") ||
+    path.includes("/paciente") ||
+    path.includes("/patient") ||
+    path.includes("/prontuario") ||
+    path.includes("/prontuário") ||
+    path.includes("/minha-conta") ||
+    path.includes("/account") ||
+    path.includes("/dashboard")
   ) {
     return true;
   }
