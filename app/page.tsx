@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { AtriaHeader } from "@/components/landing/atria-header";
 import { CurrentProposalStage } from "@/components/landing/current-proposal-stage";
-import { LandingMotion } from "@/components/landing/landing-motion";
 import { RequestForm } from "@/components/landing/request-form";
 import { RequestPreviewLink } from "@/components/landing/request-preview-link";
 import {
@@ -172,7 +171,6 @@ export default function Home() {
       </a>
 
       <AtriaHeader />
-      <LandingMotion />
 
       <main id="conteudo-principal" className="page-frame">
         <section id="visao" className="hero" aria-labelledby="hero-title">
@@ -208,12 +206,7 @@ export default function Home() {
             </div>
           </div>
 
-          <div
-            className="hero-gallery"
-            role="region"
-            aria-label="Etapas do mecanismo Atria"
-            tabIndex={0}
-          >
+          <div className="hero-gallery" aria-label="Etapas do mecanismo Atria">
             {chapters.map((chapter) => (
               <article
                 key={chapter.id}
@@ -239,19 +232,8 @@ export default function Home() {
           </div>
 
           <div className="thesis-heading">
-            <h2
-              id="thesis-title"
-              aria-label="A primeira impressão da clínica acontece no site."
-            >
-              <span aria-hidden="true">
-                {"A primeira impressão da clínica acontece no site."
-                  .split(" ")
-                  .map((word) => (
-                    <span key={word} data-motion-word>
-                      {word}{" "}
-                    </span>
-                  ))}
-              </span>
+            <h2 id="thesis-title">
+              A primeira impressão da clínica acontece no site.
             </h2>
           </div>
 

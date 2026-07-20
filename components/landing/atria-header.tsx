@@ -109,9 +109,7 @@ export function AtriaHeader() {
 
         <p className="header-status">
           <span aria-hidden="true" />
-          <span className="header-status__copy">
-            Prévia antes da publicação
-          </span>
+          Prévia antes da publicação
         </p>
 
         <RequestPreviewLink className="header-cta">
