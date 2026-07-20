@@ -42,6 +42,11 @@ Additive schema only. Existing inbound `leads` and crawl tables are preserved.
 - `max_pages` default → **8**
 - `clinic_id` nullable FK → `clinics`
 - `requires_human_review` boolean default `true`
+- (`20260720150000_crawl_jobs_lead_or_clinic.sql`, not applied remotely)
+  `lead_id` is now nullable (FK preserved), and a check constraint
+  `crawl_jobs_requires_lead_or_clinic` requires `lead_id is not null or
+  clinic_id is not null` — `crawl_jobs` now supports both lead-centric
+  (inbound) and clinic-centric (discovery/outbound) crawls.
 
 ## RLS
 
