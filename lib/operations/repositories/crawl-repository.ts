@@ -35,6 +35,9 @@ export interface CrawlRepository {
 
   getCrawlJob(jobId: string): Promise<RepoResult<CrawlJobRecord>>;
 
+  /** Most recently created crawl job for a clinic, or null if none exists. Used by the operational report generator when --crawl-job-id is omitted. */
+  getLatestCrawlJobForClinic(clinicId: string): Promise<RepoResult<CrawlJobRecord | null>>;
+
   updateCrawlJobCounters(
     jobId: string,
     patch: UpdateCrawlJobCountersInput,
@@ -54,4 +57,7 @@ export interface CrawlRepository {
   ): Promise<RepoResult<void>>;
 
   saveAsset(input: CreateScanAssetInput): Promise<RepoResult<ScanAssetRecord>>;
+
+  /** All scan_assets rows for a crawl job — used by the operational report generator to read back screenshot metadata. */
+  listAssetsForCrawlJob(crawlJobId: string): Promise<RepoResult<ScanAssetRecord[]>>;
 }

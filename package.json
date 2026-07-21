@@ -14,7 +14,8 @@
     "crawler:controlled:dry-run": "tsx scripts/crawler/run-controlled-pipeline.ts --dry-run",
     "crawler:controlled:local": "tsx scripts/crawler/run-controlled-pipeline.ts --target local",
     "crawler:controlled:staging": "tsx scripts/crawler/run-controlled-pipeline.ts --target staging",
-    "crawler:queue:process": "tsx scripts/crawler/process-crawl-queue.ts"
+    "crawler:queue:process": "tsx scripts/crawler/process-crawl-queue.ts",
+    "crawler:report": "tsx scripts/crawler/generate-operational-report.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.7",

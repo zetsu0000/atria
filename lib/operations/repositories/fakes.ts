@@ -334,6 +334,13 @@ export class FakeCrawlRepository implements CrawlRepository {
     return { ok: true as const, value: existing };
   }
 
+  async getLatestCrawlJobForClinic(clinicId: string) {
+    const candidates = [...this.jobs.values()]
+      .filter((j) => j.clinicId === clinicId)
+      .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+    return { ok: true as const, value: candidates[0] ?? null };
+  }
+
   async updateCrawlJobCounters(jobId: string, patch: Parameters<CrawlRepository["updateCrawlJobCounters"]>[1]) {
     const existing = this.jobs.get(jobId);
     if (!existing) return notFound("Crawl job not found.");
@@ -397,6 +404,10 @@ export class FakeCrawlRepository implements CrawlRepository {
     list.push(record);
     this.assets.set(input.crawlJobId, list);
     return { ok: true as const, value: record };
+  }
+
+  async listAssetsForCrawlJob(crawlJobId: string) {
+    return { ok: true as const, value: this.assets.get(crawlJobId) ?? [] };
   }
 }
 

@@ -202,6 +202,28 @@ export function createSupabaseCrawlRepository(
       }
     },
 
+    async getLatestCrawlJobForClinic(clinicId: string): Promise<RepoResult<CrawlJobRecord | null>> {
+      const client = getOperationsServiceClient(env);
+      if (!client) return CONFIGURATION_ERROR;
+      try {
+        const { data, error } = await client
+          .from("crawl_jobs")
+          .select("*")
+          .eq("clinic_id", clinicId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle<DbCrawlJob>();
+        if (error) {
+          console.warn("[atria:operations] crawl_job_latest_for_clinic_failed");
+          return UNAVAILABLE_ERROR;
+        }
+        return { ok: true, value: data ? mapCrawlJobRow(data) : null };
+      } catch {
+        console.warn("[atria:operations] crawl_job_latest_for_clinic_exception");
+        return UNAVAILABLE_ERROR;
+      }
+    },
+
     async updateCrawlJobCounters(
       jobId: string,
       patch: UpdateCrawlJobCountersInput,
@@ -335,6 +357,26 @@ export function createSupabaseCrawlRepository(
         return { ok: true, value: mapScanAssetRow(data) };
       } catch {
         console.warn("[atria:operations] scan_asset_create_exception");
+        return UNAVAILABLE_ERROR;
+      }
+    },
+
+    async listAssetsForCrawlJob(crawlJobId: string): Promise<RepoResult<ScanAssetRecord[]>> {
+      const client = getOperationsServiceClient(env);
+      if (!client) return CONFIGURATION_ERROR;
+      try {
+        const { data, error } = await client
+          .from("scan_assets")
+          .select("*")
+          .eq("crawl_job_id", crawlJobId)
+          .order("created_at", { ascending: true });
+        if (error) {
+          console.warn("[atria:operations] scan_asset_list_failed");
+          return UNAVAILABLE_ERROR;
+        }
+        return { ok: true, value: (data as DbScanAsset[] | null)?.map(mapScanAssetRow) ?? [] };
+      } catch {
+        console.warn("[atria:operations] scan_asset_list_exception");
         return UNAVAILABLE_ERROR;
       }
     },
