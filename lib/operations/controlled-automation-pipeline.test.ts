@@ -20,7 +20,11 @@ import {
   createControlledFetchHtmlPage,
   createControlledLoadRobotsPolicy,
   createControlledLookup,
+  isAllowedRealCrawlHost,
+  isValidApprovedDomainEntry,
+  resolveAllowedRealCrawlHostnames,
 } from "./pipeline/controlled-transport";
+import { resolveAndValidatePublicUrl, type LookupFn } from "@/lib/crawler/url-policy";
 import type { LeadCaptureEnv } from "@/lib/security/env";
 
 const root = join(__dirname, "..", "..");
@@ -151,6 +155,130 @@ describe("controlled-transport: fixture-only default and real-crawl allowlist", 
     const loadRobotsPolicy = createControlledLoadRobotsPolicy({ allowRealCrawl: false });
     const policy = await loadRobotsPolicy({ origin: "https://not-a-real-clinic.invalid" });
     assert.equal(policy.isPathAllowed("/qualquer-caminho"), true);
+  });
+});
+
+describe("controlled-transport: manual approved-domain mechanism", () => {
+  const APPROVED = ["grupocpd.com.br", "www.grupocpd.com.br"];
+  // A fake "real" DNS lookup standing in for node:dns — never a real network
+  // call — used only to exercise the allowlist gate all the way through
+  // createControlledLookup's allowed branch without touching the network.
+  const publicIpLookup: LookupFn = async () => [{ address: "8.8.8.8", family: 4 }];
+
+  it("1. an unapproved real domain stays blocked, even while a different domain is approved", async () => {
+    const fetchHtmlPage = createControlledFetchHtmlPage({ allowRealCrawl: true, approvedRealCrawlHostnames: APPROVED });
+    const result = await fetchHtmlPage({
+      url: "https://some-other-unapproved-clinic.example.org/",
+      allowedOrigin: "https://some-other-unapproved-clinic.example.org",
+    });
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.code, "blocked_host");
+
+    const lookupImpl = createControlledLookup({ allowRealCrawl: true, approvedRealCrawlHostnames: APPROVED, realLookupImpl: publicIpLookup });
+    await assert.rejects(() => lookupImpl("some-other-unapproved-clinic.example.org"));
+  });
+
+  it("2. an approved real domain is allowed only once explicitly passed — not by default, and not for unlisted domains", async () => {
+    const withoutApproval = resolveAllowedRealCrawlHostnames({ allowRealCrawl: true });
+    assert.equal(isAllowedRealCrawlHost("grupocpd.com.br", withoutApproval), false);
+
+    const withApproval = resolveAllowedRealCrawlHostnames({ allowRealCrawl: true, approvedRealCrawlHostnames: APPROVED });
+    assert.equal(isAllowedRealCrawlHost("grupocpd.com.br", withApproval), true);
+    assert.equal(isAllowedRealCrawlHost("www.grupocpd.com.br", withApproval), true);
+    assert.equal(isAllowedRealCrawlHost("random-other-domain.com", withApproval), false);
+    // The default example.com allowlist is still intact — approval only extends it.
+    assert.equal(isAllowedRealCrawlHost("example.com", withApproval), true);
+
+    // Full gate, exercised end-to-end via createControlledLookup (still no real network — see publicIpLookup).
+    const lookupWithoutApproval = createControlledLookup({ allowRealCrawl: true, realLookupImpl: publicIpLookup });
+    await assert.rejects(() => lookupWithoutApproval("grupocpd.com.br"));
+
+    const lookupWithApproval = createControlledLookup({
+      allowRealCrawl: true,
+      approvedRealCrawlHostnames: APPROVED,
+      realLookupImpl: publicIpLookup,
+    });
+    const addresses = await lookupWithApproval("grupocpd.com.br");
+    assert.deepEqual(addresses, [{ address: "8.8.8.8", family: 4 }]);
+    const wwwAddresses = await lookupWithApproval("www.grupocpd.com.br");
+    assert.ok(wwwAddresses.length > 0);
+  });
+
+  it("3. production is refused even when a real domain has been explicitly approved — fully independent gates", () => {
+    const productionUrl = `https://${KNOWN_PROJECT_REFS.production}.supabase.co`;
+    const selection = selectRepositories({
+      dryRun: false,
+      target: "staging",
+      env: baseEnv({ supabaseUrl: productionUrl }),
+    });
+    assert.equal(selection.ok, false);
+    if (!selection.ok) assert.match(selection.reason, /production/);
+
+    // Approving a domain never touches SUPABASE_URL / the target-guard —
+    // it only ever widens the controlled-transport hostname allowlist.
+    const withApproval = resolveAllowedRealCrawlHostnames({ allowRealCrawl: true, approvedRealCrawlHostnames: APPROVED });
+    assert.equal(isAllowedRealCrawlHost("grupocpd.com.br", withApproval), true);
+    assert.equal(assertSafeTarget("staging", productionUrl).ok, false);
+  });
+
+  it("4a. 'localhost' is blocked before the hostname allowlist is even consulted, even if explicitly (mistakenly) approved", async () => {
+    const lookupImpl = createControlledLookup({ allowRealCrawl: true, approvedRealCrawlHostnames: ["localhost"], realLookupImpl: publicIpLookup });
+    const result = await resolveAndValidatePublicUrl("http://localhost:9999/", lookupImpl);
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.code, "blocked_host");
+  });
+
+  it("4b. an approved domain that resolves to a private IP is still blocked — the SSRF guard is independent of hostname approval", async () => {
+    const privateIpLookup: LookupFn = async () => [{ address: "10.0.0.5", family: 4 }];
+    const lookupImpl = createControlledLookup({
+      allowRealCrawl: true,
+      approvedRealCrawlHostnames: APPROVED,
+      realLookupImpl: privateIpLookup,
+    });
+    const result = await resolveAndValidatePublicUrl("https://grupocpd.com.br/", lookupImpl);
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.code, "blocked_host");
+  });
+
+  it("6a. isValidApprovedDomainEntry rejects wildcards, protocols, paths, ports, whitespace, and raw IPs", () => {
+    const bad = [
+      "*",
+      "*.grupocpd.com.br",
+      "grupocpd.*",
+      "",
+      "   ",
+      "https://grupocpd.com.br",
+      "grupocpd.com.br/path",
+      "grupocpd.com.br:8080",
+      "8.8.8.8",
+      "grupocpd..com.br",
+      ".grupocpd.com.br",
+      "grupocpd.com.br.",
+      "user@grupocpd.com.br",
+    ];
+    for (const entry of bad) {
+      assert.equal(isValidApprovedDomainEntry(entry), false, `expected "${entry}" to be rejected`);
+    }
+    assert.equal(isValidApprovedDomainEntry("grupocpd.com.br"), true);
+    assert.equal(isValidApprovedDomainEntry("www.grupocpd.com.br"), true);
+    assert.equal(isValidApprovedDomainEntry("GRUPOCPD.COM.BR"), true);
+  });
+
+  it("6b. a literal wildcard-looking approved entry never behaves as a real wildcard match (no glob semantics)", () => {
+    const allowed = resolveAllowedRealCrawlHostnames({ allowRealCrawl: true, approvedRealCrawlHostnames: ["*.grupocpd.com.br"] });
+    assert.equal(isAllowedRealCrawlHost("sub.grupocpd.com.br", allowed), false);
+    assert.equal(isAllowedRealCrawlHost("grupocpd.com.br", allowed), false);
+  });
+
+  it("7. approvedRealCrawlHostnames has no effect in fixture mode — still zero network calls, fixture content only", async () => {
+    const fetchHtmlPage = createControlledFetchHtmlPage({ allowRealCrawl: false, approvedRealCrawlHostnames: APPROVED });
+    const result = await fetchHtmlPage({ url: "https://grupocpd.com.br/", allowedOrigin: "https://grupocpd.com.br" });
+    assert.equal(result.ok, true);
+    if (result.ok) assert.match(result.page.bodyText, /Clínica Fixture/);
+
+    const lookupImpl = createControlledLookup({ allowRealCrawl: false, approvedRealCrawlHostnames: APPROVED });
+    const addresses = await lookupImpl("grupocpd.com.br");
+    assert.deepEqual(addresses, [{ address: "93.184.216.34", family: 4 }]);
   });
 });
 

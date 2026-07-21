@@ -462,6 +462,54 @@ describe("processCrawlQueue + screenshots: gating, integration, score/draft refe
   });
 });
 
+describe("approved-domain single-clinic rehearsal: screenshot gate and outreach-draft-only, on a real clinic hostname", () => {
+  function approvedDomainClinic() {
+    return {
+      displayName: "GRUPO CPD - Centro Paulista de Dermatologia e Estética",
+      normalizedName: "grupo cpd centro paulista de dermatologia e estetica",
+      websiteUrl: "https://grupocpd.com.br/",
+      normalizedWebsiteOrigin: "https://grupocpd.com.br",
+      city: null,
+      state: "SP",
+      specialty: null,
+      status: "prospect" as const,
+      sourceType: "google_places" as const,
+      sourceAttribution: {},
+    };
+  }
+
+  it("5. screenshots still require --capture-screenshots even with --allow-real-crawl set for an approved domain", async () => {
+    const deps = buildFakeDeps();
+    const clinic = await deps.clinicRepo.createClinic({ ...approvedDomainClinic(), dedupeKey: "approved-domain-no-capture-flag" });
+    if (!clinic.ok) return assert.fail();
+
+    const result = await processCrawlQueue({ clinicIds: [clinic.value.id], allowRealCrawl: true, captureScreenshots: false }, deps);
+    const outcome = result.processed[0]!;
+    assert.equal(outcome.screenshots.length, 0);
+  });
+
+  it("8. an approved-domain crawl with screenshots still never sends outreach — draft only", async () => {
+    const deps = buildFakeDeps({ captureScreenshot: successfulFakeCapture() });
+    const clinic = await deps.clinicRepo.createClinic({ ...approvedDomainClinic(), dedupeKey: "approved-domain-outreach-draft-only" });
+    if (!clinic.ok) return assert.fail();
+
+    const result = await processCrawlQueue(
+      { clinicIds: [clinic.value.id], allowRealCrawl: true, captureScreenshots: true, createOutreachDraft: true },
+      deps,
+    );
+    const outcome = result.processed[0]!;
+    assert.ok(outcome.deferredOutreachDraftId, "expected an outreach draft to be created");
+    const outreachRepo = deps.outreachRepo as FakeOutreachRepository;
+    const draft = outreachRepo.messages.get(outcome.deferredOutreachDraftId!);
+    assert.ok(draft);
+    assert.equal(draft!.status, "draft");
+    assert.equal(draft!.humanReviewed, false);
+    for (const message of outreachRepo.messages.values()) {
+      assert.notEqual(message.status, "sent");
+    }
+  });
+});
+
 describe("runControlledPipeline: end-to-end with screenshots enabled", () => {
   it("runs the full pipeline with screenshots and never sends outreach", async () => {
     const deps = buildFakeDeps({ captureScreenshot: successfulFakeCapture() });

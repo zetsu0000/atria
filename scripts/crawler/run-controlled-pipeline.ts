@@ -31,6 +31,12 @@
  *                          it, screenshot metadata is persisted with
  *                          status "pending_storage" and no storage upload
  *                          is attempted.
+ *   --approved-domains <d1,d2>  Default none. Explicitly, per-invocation
+ *                          extends the real-crawl hostname allowlist beyond
+ *                          example.com for exactly the listed domains — see
+ *                          lib/operations/pipeline/controlled-transport.ts.
+ *                          Never persisted; no wildcards; independent of
+ *                          the SSRF/private-IP guard and production refusal.
  *
  * This pipeline never sends outreach — it only ever creates a
  * `draft`-status row. Sending requires a separate, explicitly
@@ -46,11 +52,13 @@ import type { PipelineTarget } from "@/lib/operations/pipeline/target-guard";
 import {
   createControlledFetchHtmlPage,
   createControlledLoadRobotsPolicy,
+  createControlledLookup,
+  isValidApprovedDomainEntry,
 } from "@/lib/operations/pipeline/controlled-transport";
 import { createSupabaseStorageUploader, type ScreenshotStorageConfig } from "@/lib/operations/pipeline/screenshot-assets";
 import { captureScreenshotWithPlaywright } from "@/lib/crawler/screenshot-capture";
 import { runControlledPipeline } from "@/lib/operations/pipeline/run-controlled-pipeline";
-import { getIntValue, getValue, parseArgs } from "./cli-args";
+import { getIntValue, getListValue, getValue, parseArgs } from "./cli-args";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..", "..");
@@ -67,10 +75,19 @@ async function main(): Promise<void> {
   const maxPages = getIntValue(args, "max-pages", 5);
   const screenshotTimeoutMs = getIntValue(args, "screenshot-timeout-ms", 15000);
   const screenshotStorageBucket = getValue(args, "screenshot-storage-bucket");
+  const approvedDomains = getListValue(args, "approved-domains");
 
   if (captureScreenshots && !allowRealCrawl) {
     console.error(
       "[controlled-pipeline] REFUSED: --capture-screenshots requires --allow-real-crawl (screenshots need a real browser navigation to a real, allowlisted page).",
+    );
+    process.exit(1);
+  }
+
+  const invalidApprovedDomain = approvedDomains.find((d) => !isValidApprovedDomainEntry(d));
+  if (invalidApprovedDomain) {
+    console.error(
+      `[controlled-pipeline] REFUSED: --approved-domains contains an invalid entry "${invalidApprovedDomain}" (plain hostnames only — no wildcards, protocols, paths, ports, or IP literals).`,
     );
     process.exit(1);
   }
@@ -96,10 +113,16 @@ async function main(): Promise<void> {
       ? { configured: true, bucketName: screenshotStorageBucket, upload: createSupabaseStorageUploader(env, screenshotStorageBucket) }
       : { configured: false };
 
+  if (approvedDomains.length > 0) {
+    console.log(`[controlled-pipeline] approvedDomains=${approvedDomains.join(",")} (extends the default example.com-only allowlist for this run only)`);
+  }
+
+  const transportOptions = { allowRealCrawl, approvedRealCrawlHostnames: approvedDomains };
   const deps = {
     ...repos,
-    fetchHtmlPage: createControlledFetchHtmlPage({ allowRealCrawl }),
-    loadRobotsPolicy: createControlledLoadRobotsPolicy({ allowRealCrawl }),
+    fetchHtmlPage: createControlledFetchHtmlPage(transportOptions),
+    loadRobotsPolicy: createControlledLoadRobotsPolicy(transportOptions),
+    lookupImpl: createControlledLookup(transportOptions),
     captureScreenshot: captureScreenshots ? captureScreenshotWithPlaywright : undefined,
   };
 
