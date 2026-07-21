@@ -7,6 +7,7 @@
  *   npx tsx scripts/crawler/run-controlled-pipeline.ts --dry-run
  *   npx tsx scripts/crawler/run-controlled-pipeline.ts --target local
  *   npx tsx scripts/crawler/run-controlled-pipeline.ts --target staging --allow-real-crawl
+ *   npx tsx scripts/crawler/run-controlled-pipeline.ts --dry-run --allow-real-crawl --capture-screenshots
  *
  * Flags:
  *   --dry-run              Use in-memory fakes only. No Supabase, no --target needed.
@@ -18,9 +19,18 @@
  *   --max-pages <n>        Default 5.
  *   --allow-real-crawl     Without this, every fetch is served from an
  *                          in-memory fixture — no network call is made.
- *                          With it, only example.com may actually be
- *                          requested (lib/operations/pipeline/controlled-transport.ts).
+ *                          With it, only example.com (+ subdomains) may
+ *                          actually be requested (lib/operations/pipeline/controlled-transport.ts).
  *   --no-outreach-draft    Skip building an outreach draft (default: build one).
+ *   --capture-screenshots  Capture homepage desktop+mobile screenshots.
+ *                          REQUIRES --allow-real-crawl — refused otherwise.
+ *   --screenshot-timeout-ms <n>   Default 15000.
+ *   --screenshot-storage-bucket <name>  Upload to this private Supabase
+ *                          Storage bucket (must already exist — never
+ *                          created or made public by this pipeline). Without
+ *                          it, screenshot metadata is persisted with
+ *                          status "pending_storage" and no storage upload
+ *                          is attempted.
  *
  * This pipeline never sends outreach — it only ever creates a
  * `draft`-status row. Sending requires a separate, explicitly
@@ -37,6 +47,8 @@ import {
   createControlledFetchHtmlPage,
   createControlledLoadRobotsPolicy,
 } from "@/lib/operations/pipeline/controlled-transport";
+import { createSupabaseStorageUploader, type ScreenshotStorageConfig } from "@/lib/operations/pipeline/screenshot-assets";
+import { captureScreenshotWithPlaywright } from "@/lib/crawler/screenshot-capture";
 import { runControlledPipeline } from "@/lib/operations/pipeline/run-controlled-pipeline";
 import { getIntValue, getValue, parseArgs } from "./cli-args";
 
@@ -48,10 +60,20 @@ async function main(): Promise<void> {
   const dryRun = args.flags.has("dry-run");
   const allowRealCrawl = args.flags.has("allow-real-crawl");
   const noOutreachDraft = args.flags.has("no-outreach-draft");
+  const captureScreenshots = args.flags.has("capture-screenshots");
   const target = getValue(args, "target") as PipelineTarget | undefined;
   const csvPath = getValue(args, "csv", join(root, "data/examples/prospect-candidates.example.csv"))!;
   const maxCandidates = getIntValue(args, "max-candidates", 5);
   const maxPages = getIntValue(args, "max-pages", 5);
+  const screenshotTimeoutMs = getIntValue(args, "screenshot-timeout-ms", 15000);
+  const screenshotStorageBucket = getValue(args, "screenshot-storage-bucket");
+
+  if (captureScreenshots && !allowRealCrawl) {
+    console.error(
+      "[controlled-pipeline] REFUSED: --capture-screenshots requires --allow-real-crawl (screenshots need a real browser navigation to a real, allowlisted page).",
+    );
+    process.exit(1);
+  }
 
   loadDotEnvLocalIfPresent(root);
   const env = readLeadCaptureEnv();
@@ -64,19 +86,34 @@ async function main(): Promise<void> {
   const repos = repoSelection.value;
 
   console.log(
-    `[controlled-pipeline] mode=${dryRun ? "dry-run" : `target=${target}`} allowRealCrawl=${allowRealCrawl} maxCandidates=${maxCandidates} maxPages=${maxPages} csv=${csvPath}`,
+    `[controlled-pipeline] mode=${dryRun ? "dry-run" : `target=${target}`} allowRealCrawl=${allowRealCrawl} captureScreenshots=${captureScreenshots} maxCandidates=${maxCandidates} maxPages=${maxPages} csv=${csvPath}`,
   );
 
   const csvText = readFileSync(csvPath, "utf8");
+
+  const screenshotStorage: ScreenshotStorageConfig =
+    !dryRun && screenshotStorageBucket
+      ? { configured: true, bucketName: screenshotStorageBucket, upload: createSupabaseStorageUploader(env, screenshotStorageBucket) }
+      : { configured: false };
 
   const deps = {
     ...repos,
     fetchHtmlPage: createControlledFetchHtmlPage({ allowRealCrawl }),
     loadRobotsPolicy: createControlledLoadRobotsPolicy({ allowRealCrawl }),
+    captureScreenshot: captureScreenshots ? captureScreenshotWithPlaywright : undefined,
   };
 
   const result = await runControlledPipeline(
-    { csvText, maxCandidates, maxPages, allowRealCrawl, createOutreachDraft: !noOutreachDraft },
+    {
+      csvText,
+      maxCandidates,
+      maxPages,
+      allowRealCrawl,
+      createOutreachDraft: !noOutreachDraft,
+      captureScreenshots,
+      screenshotTimeoutMs,
+      screenshotStorage,
+    },
     deps,
   );
 
@@ -101,11 +138,19 @@ async function main(): Promise<void> {
           ok: p.result.ok,
           finalStatus: p.result.ok ? p.result.finalStatus : null,
           pagesFetched: p.result.ok ? p.result.pagesFetched : null,
-          scoreTotal: p.result.ok ? (p.result.score?.total ?? null) : null,
-          outreachDraftId: p.result.ok ? (p.result.outreachDraft?.id ?? null) : null,
+          scoreTotal: p.updatedScore?.total ?? (p.result.ok ? (p.result.score?.total ?? null) : null),
+          outreachDraftId: p.deferredOutreachDraftId ?? (p.result.ok ? (p.result.outreachDraft?.id ?? null) : null),
           failureReason: p.result.ok ? null : p.result.reason,
+          screenshots: p.screenshots.map((s) => ({
+            viewport: s.viewport,
+            assetType: s.assetType,
+            captureStatus: s.captureStatus,
+            storagePath: s.storagePath,
+            assetId: s.asset?.id ?? null,
+          })),
+          screenshotsSkippedReason: p.screenshotsSkippedReason,
         })),
-        note: "No real crawl unless --allow-real-crawl (and only to example.com). No outreach ever sent — draft only. Human review required before any commercial use.",
+        note: "No real crawl unless --allow-real-crawl (and only to example.com + subdomains). No screenshots unless --capture-screenshots (and only with --allow-real-crawl). No outreach ever sent — draft only. Human review required before any commercial use.",
       },
       null,
       2,

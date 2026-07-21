@@ -34,7 +34,7 @@ export const DEFAULT_FIXTURE_HTML = `<!doctype html>
   </body>
 </html>`;
 
-function hostnameOf(url: string): string | null {
+export function hostnameOf(url: string): string | null {
   try {
     return new URL(url).hostname.toLowerCase();
   } catch {
@@ -42,7 +42,7 @@ function hostnameOf(url: string): string | null {
   }
 }
 
-function isAllowedRealCrawlHost(hostname: string, allowedHosts: readonly string[]): boolean {
+export function isAllowedRealCrawlHost(hostname: string, allowedHosts: readonly string[]): boolean {
   return allowedHosts.some((entry) => hostname === entry || hostname.endsWith(`.${entry}`));
 }
 

@@ -15,7 +15,6 @@
  * fixture-only and only ever allows real requests to an explicit hostname
  * allowlist.
  */
-import type { RunCrawlJobDeps } from "@/lib/operations/run-crawl-job";
 import type { DiscoveryRepository } from "@/lib/operations/repositories/discovery-repository";
 import type { PromoteCandidateResult } from "@/lib/operations/promote-candidate";
 import { promoteCandidateToClinic } from "@/lib/operations/promote-candidate";
@@ -24,7 +23,13 @@ import {
   DEFAULT_MAX_CANDIDATES,
   type ImportCandidatesResult,
 } from "./import-candidates";
-import { processCrawlQueue, DEFAULT_MAX_PAGES, type ProcessCrawlQueueResult } from "./process-crawl-queue";
+import {
+  processCrawlQueue,
+  DEFAULT_MAX_PAGES,
+  type ProcessCrawlQueueDeps,
+  type ProcessCrawlQueueResult,
+} from "./process-crawl-queue";
+import type { ScreenshotStorageConfig } from "./screenshot-assets";
 
 export type RunControlledPipelineInput = {
   csvText: string;
@@ -32,9 +37,13 @@ export type RunControlledPipelineInput = {
   maxPages?: number;
   allowRealCrawl: boolean;
   createOutreachDraft?: boolean;
+  /** Requires allowRealCrawl=true; otherwise silently skipped — see process-crawl-queue.ts. */
+  captureScreenshots?: boolean;
+  screenshotTimeoutMs?: number;
+  screenshotStorage?: ScreenshotStorageConfig;
 };
 
-export type RunControlledPipelineDeps = RunCrawlJobDeps & { discoveryRepo: DiscoveryRepository };
+export type RunControlledPipelineDeps = ProcessCrawlQueueDeps & { discoveryRepo: DiscoveryRepository };
 
 export type RunControlledPipelineResult = {
   import: ImportCandidatesResult;
@@ -70,6 +79,9 @@ export async function runControlledPipeline(
       maxPages: input.maxPages ?? DEFAULT_MAX_PAGES,
       allowRealCrawl: input.allowRealCrawl,
       createOutreachDraft: input.createOutreachDraft ?? true,
+      captureScreenshots: input.captureScreenshots,
+      screenshotTimeoutMs: input.screenshotTimeoutMs,
+      screenshotStorage: input.screenshotStorage,
     },
     deps,
   );

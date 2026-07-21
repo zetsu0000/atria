@@ -56,6 +56,9 @@ export type ScoreInput = {
   pageCount: number;
   hasDesktopScreenshotMeta?: boolean;
   hasMobileScreenshotMeta?: boolean;
+  /** scan_assets row id, when known — referenced in the evidence text so score/report readers can look up the actual screenshot. */
+  desktopScreenshotAssetId?: string | null;
+  mobileScreenshotAssetId?: string | null;
 };
 
 /**
@@ -120,6 +123,18 @@ export function calculatePlaceholderScore(input: ScoreInput): DigitalScore {
       reason: "Meta description presente.",
     });
   }
+  if (input.hasDesktopScreenshotMeta) {
+    // Desktop screenshot presence doesn't change the placeholder-v0 point
+    // total (only mobile does, above) — this is a 0-point evidence entry
+    // purely so score/report consumers can see the desktop asset reference.
+    evidence.push({
+      dimension: "clarity",
+      points: 0,
+      reason: input.desktopScreenshotAssetId
+        ? `Metadado de screenshot desktop registrado (asset ${input.desktopScreenshotAssetId}; avaliação visual pendente).`
+        : "Metadado de screenshot desktop registrado (avaliação visual pendente).",
+    });
+  }
   clarity = clamp(clarity, 0, 20);
 
   // Mobile: without real screenshots, keep conservative placeholder.
@@ -129,7 +144,9 @@ export function calculatePlaceholderScore(input: ScoreInput): DigitalScore {
     evidence.push({
       dimension: "mobile",
       points: 4,
-      reason: "Metadado de screenshot mobile registrado (avaliação visual pendente).",
+      reason: input.mobileScreenshotAssetId
+        ? `Metadado de screenshot mobile registrado (asset ${input.mobileScreenshotAssetId}; avaliação visual pendente).`
+        : "Metadado de screenshot mobile registrado (avaliação visual pendente).",
     });
   } else {
     evidence.push({
