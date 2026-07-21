@@ -1,0 +1,7 @@
+name,website_url,phone,email,city,state,specialty
+Clínica Exemplo Um,https://example.com/,11900000001,contato@example.com,São Paulo,SP,Dermatologia
+Clínica Exemplo Dois,https://clinica-dois.example.com/,11900000002,contato2@example.com,Curitiba,PR,Dermatologia
+Clínica Exemplo Três,https://clinica-tres.example.com/,11900000003,contato3@example.com,Belo Horizonte,MG,Dermatologia
+Clínica Exemplo Quatro,https://clinica-quatro.example.com/,11900000004,contato4@example.com,Recife,PE,Dermatologia
+Clínica Exemplo Cinco,https://clinica-cinco.example.com/,11900000005,contato5@example.com,Porto Alegre,RS,Dermatologia
+Clínica Exemplo Seis,https://clinica-seis.example.com/,11900000006,contato6@example.com,Salvador,BA,Dermatologia

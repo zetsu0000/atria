@@ -10,7 +10,11 @@
     "test": "tsx --test lib/**/*.test.ts",
     "typecheck": "tsc --noEmit",
     "crawler:fixture": "tsx scripts/crawler-fixture.ts scan-fixture",
-    "crawler:validate-url": "tsx scripts/crawler-fixture.ts validate"
+    "crawler:validate-url": "tsx scripts/crawler-fixture.ts validate",
+    "crawler:controlled:dry-run": "tsx scripts/crawler/run-controlled-pipeline.ts --dry-run",
+    "crawler:controlled:local": "tsx scripts/crawler/run-controlled-pipeline.ts --target local",
+    "crawler:controlled:staging": "tsx scripts/crawler/run-controlled-pipeline.ts --target staging",
+    "crawler:queue:process": "tsx scripts/crawler/process-crawl-queue.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.7",
