@@ -16,7 +16,8 @@
     "crawler:controlled:staging": "tsx scripts/crawler/run-controlled-pipeline.ts --target staging",
     "crawler:queue:process": "tsx scripts/crawler/process-crawl-queue.ts",
     "crawler:report": "tsx scripts/crawler/generate-operational-report.ts",
-    "crawler:discover:places": "tsx scripts/crawler/discover-google-places.ts"
+    "crawler:discover:places": "tsx scripts/crawler/discover-google-places.ts",
+    "crawler:promote": "tsx scripts/crawler/promote-candidate.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.7",
