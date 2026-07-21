@@ -166,7 +166,7 @@ export function createSupabaseDiscoveryRepository(
           .insert({
             discovery_job_id: input.discoveryJobId ?? null,
             source_type: input.sourceType,
-            status: "new",
+            status: input.status ?? "new",
             raw_name: input.rawName.slice(0, 200),
             normalized_name: input.normalizedName.slice(0, 200),
             website_url: input.websiteUrl?.slice(0, 2048) ?? null,

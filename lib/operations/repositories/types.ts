@@ -113,6 +113,13 @@ export type RecordCandidateInput = {
   specialty: string | null;
   sourceAttribution: Record<string, unknown>;
   dedupeKey: string;
+  /**
+   * Initial status. Defaults to "new". Providers that can't resolve a
+   * website (e.g. Google Places results with no `websiteUri`) pass
+   * "needs_review" so the candidate surfaces for human review instead of
+   * flowing straight through as a fully-qualified "new" lead.
+   */
+  status?: Extract<CandidateStatus, "new" | "needs_review">;
 };
 
 // ---------------------------------------------------------------------------

@@ -92,7 +92,7 @@ export class FakeDiscoveryRepository implements DiscoveryRepository {
       id,
       discoveryJobId: input.discoveryJobId ?? null,
       sourceType: input.sourceType,
-      status: "new",
+      status: input.status ?? "new",
       rawName: input.rawName,
       normalizedName: input.normalizedName,
       websiteUrl: input.websiteUrl,

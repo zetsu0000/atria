@@ -58,3 +58,13 @@ export function hasTurnstileConfig(env: LeadCaptureEnv = readLeadCaptureEnv()): 
 export function logConfigWarning(code: string): void {
   console.warn(`[atria:leads] configuration_warning code=${code}`);
 }
+
+export type GooglePlacesEnv = {
+  googlePlacesApiKey: string | null;
+};
+
+export function readGooglePlacesEnv(): GooglePlacesEnv {
+  return {
+    googlePlacesApiKey: readOptional("GOOGLE_PLACES_API_KEY"),
+  };
+}
