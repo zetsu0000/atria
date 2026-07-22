@@ -68,3 +68,14 @@ export function readGooglePlacesEnv(): GooglePlacesEnv {
     googlePlacesApiKey: readOptional("GOOGLE_PLACES_API_KEY"),
   };
 }
+
+export type ScreenshotStorageEnv = {
+  /** Private Supabase Storage bucket name for crawler screenshots — never a public bucket. See lib/operations/pipeline/screenshot-assets.ts's DEFAULT_SCREENSHOT_STORAGE_BUCKET. */
+  screenshotStorageBucket: string | null;
+};
+
+export function readScreenshotStorageEnv(): ScreenshotStorageEnv {
+  return {
+    screenshotStorageBucket: readOptional("SCREENSHOT_STORAGE_BUCKET"),
+  };
+}

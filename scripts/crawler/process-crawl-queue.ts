@@ -25,7 +25,7 @@
  */
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { readLeadCaptureEnv } from "@/lib/security/env";
+import { readLeadCaptureEnv, readScreenshotStorageEnv } from "@/lib/security/env";
 import { loadDotEnvLocalIfPresent } from "@/lib/operations/pipeline/load-dotenv-local";
 import { selectRepositories } from "@/lib/operations/pipeline/select-repositories";
 import type { PipelineTarget } from "@/lib/operations/pipeline/target-guard";
@@ -54,7 +54,7 @@ async function main(): Promise<void> {
   const clinicIds = getListValue(args, "clinic-ids");
   const crawlJobIds = getListValue(args, "crawl-job-ids");
   const screenshotTimeoutMs = getIntValue(args, "screenshot-timeout-ms", 15000);
-  const screenshotStorageBucket = getValue(args, "screenshot-storage-bucket");
+  const screenshotStorageBucket = getValue(args, "screenshot-storage-bucket") ?? readScreenshotStorageEnv().screenshotStorageBucket;
   const approvedDomains = getListValue(args, "approved-domains");
 
   if (clinicIds.length === 0 && crawlJobIds.length === 0) {

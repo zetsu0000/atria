@@ -29,6 +29,18 @@ import type { ScanAssetType } from "@/lib/crawler/screenshot-metadata";
 import type { CaptureScreenshotResult, ScreenshotCaptureImpl, ScreenshotViewport } from "@/lib/crawler/screenshot-capture";
 import { viewportDimensions } from "@/lib/crawler/screenshot-capture";
 
+/**
+ * Expected private Supabase Storage bucket name for crawler screenshots.
+ * Never created automatically by this module — see
+ * supabase/migrations/*_crawler_screenshots_bucket.sql for the additive,
+ * private (public: false) bucket-creation migration, and
+ * docs/technical/crawler-screenshot-storage-bucket.md for manual setup.
+ * Overridable via the SCREENSHOT_STORAGE_BUCKET env var
+ * (lib/security/env.ts's readScreenshotStorageEnv) or the
+ * --screenshot-storage-bucket CLI flag, which takes precedence.
+ */
+export const DEFAULT_SCREENSHOT_STORAGE_BUCKET = "crawler-screenshots";
+
 export type ScreenshotUploadResult = { ok: true } | { ok: false; message: string };
 export type ScreenshotUploadFn = (params: {
   path: string;

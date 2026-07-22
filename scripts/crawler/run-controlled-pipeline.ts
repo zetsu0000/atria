@@ -27,10 +27,12 @@
  *   --screenshot-timeout-ms <n>   Default 15000.
  *   --screenshot-storage-bucket <name>  Upload to this private Supabase
  *                          Storage bucket (must already exist — never
- *                          created or made public by this pipeline). Without
- *                          it, screenshot metadata is persisted with
- *                          status "pending_storage" and no storage upload
- *                          is attempted.
+ *                          created or made public by this pipeline).
+ *                          Defaults to the SCREENSHOT_STORAGE_BUCKET env
+ *                          var when this flag is omitted. Without either,
+ *                          screenshot metadata is persisted with status
+ *                          "pending_storage" and no storage upload is
+ *                          attempted — never fails the pipeline.
  *   --approved-domains <d1,d2>  Default none. Explicitly, per-invocation
  *                          extends the real-crawl hostname allowlist beyond
  *                          example.com for exactly the listed domains — see
@@ -45,7 +47,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { readLeadCaptureEnv } from "@/lib/security/env";
+import { readLeadCaptureEnv, readScreenshotStorageEnv } from "@/lib/security/env";
 import { loadDotEnvLocalIfPresent } from "@/lib/operations/pipeline/load-dotenv-local";
 import { selectRepositories } from "@/lib/operations/pipeline/select-repositories";
 import type { PipelineTarget } from "@/lib/operations/pipeline/target-guard";
@@ -74,7 +76,7 @@ async function main(): Promise<void> {
   const maxCandidates = getIntValue(args, "max-candidates", 5);
   const maxPages = getIntValue(args, "max-pages", 5);
   const screenshotTimeoutMs = getIntValue(args, "screenshot-timeout-ms", 15000);
-  const screenshotStorageBucket = getValue(args, "screenshot-storage-bucket");
+  const screenshotStorageBucket = getValue(args, "screenshot-storage-bucket") ?? readScreenshotStorageEnv().screenshotStorageBucket;
   const approvedDomains = getListValue(args, "approved-domains");
 
   if (captureScreenshots && !allowRealCrawl) {

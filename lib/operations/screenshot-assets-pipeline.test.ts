@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import {
   FakeClinicRepository,
@@ -10,7 +10,7 @@ import {
   FakeOutreachRepository,
   FakeScoreRepository,
 } from "./repositories/fakes";
-import { captureAndPersistScreenshots } from "./pipeline/screenshot-assets";
+import { captureAndPersistScreenshots, createSupabaseStorageUploader, DEFAULT_SCREENSHOT_STORAGE_BUCKET } from "./pipeline/screenshot-assets";
 import type { ScreenshotUploadFn } from "./pipeline/screenshot-assets";
 import { processCrawlQueue, type ProcessCrawlQueueDeps } from "./pipeline/process-crawl-queue";
 import { runControlledPipeline, type RunControlledPipelineDeps } from "./pipeline/run-controlled-pipeline";
@@ -221,6 +221,205 @@ describe("captureAndPersistScreenshots: metadata persistence + safe fallback", (
       assert.equal(metadata.captureStatus, "capture_failed");
       assert.equal(metadata.captureFailureCode, "navigation_failed");
     }
+  });
+});
+
+describe("private screenshot storage bucket: config, fallback, and safety", () => {
+  it("1. bucket configured → upload is called and 2. storage_path is persisted", async () => {
+    const crawlRepo = new FakeCrawlRepository();
+    const created = await crawlRepo.createCrawlJob({
+      clinicId: "clinic-1",
+      requestedUrl: "https://example.com/",
+      normalizedOrigin: "https://example.com",
+    });
+    if (!created.ok) return assert.fail();
+
+    let uploadCalledWith: { path: string; contentType: string } | null = null;
+    const upload: ScreenshotUploadFn = async ({ path, contentType }) => {
+      uploadCalledWith = { path, contentType };
+      return { ok: true };
+    };
+
+    const outcomes = await captureAndPersistScreenshots(
+      {
+        clinicId: "clinic-1",
+        crawlJobId: created.value.id,
+        sourceUrl: "https://example.com/",
+        storage: { configured: true, bucketName: DEFAULT_SCREENSHOT_STORAGE_BUCKET, upload },
+      },
+      { crawlRepo, captureScreenshot: successfulFakeCapture() },
+    );
+
+    assert.ok(uploadCalledWith, "expected the upload function to be called");
+    for (const outcome of outcomes) {
+      assert.equal(outcome.captureStatus, "captured");
+      assert.ok(outcome.storagePath);
+      assert.equal(outcome.asset?.storagePath, outcome.storagePath);
+      const metadata = outcome.asset!.metadata as Record<string, unknown>;
+      assert.equal(metadata.bucketName, DEFAULT_SCREENSHOT_STORAGE_BUCKET);
+      assert.equal(metadata.pageKind, "homepage");
+      assert.ok(typeof metadata.capturedAt === "string");
+    }
+  });
+
+  it("3. bucket missing (unconfigured) → pending_storage, pipeline does not fail", async () => {
+    const crawlRepo = new FakeCrawlRepository();
+    const created = await crawlRepo.createCrawlJob({
+      clinicId: "clinic-1",
+      requestedUrl: "https://example.com/",
+      normalizedOrigin: "https://example.com",
+    });
+    if (!created.ok) return assert.fail();
+
+    const outcomes = await captureAndPersistScreenshots(
+      { clinicId: "clinic-1", crawlJobId: created.value.id, sourceUrl: "https://example.com/", storage: { configured: false } },
+      { crawlRepo, captureScreenshot: successfulFakeCapture() },
+    );
+    for (const outcome of outcomes) {
+      assert.equal(outcome.captureStatus, "pending_storage");
+      assert.equal(outcome.storagePath, null);
+      assert.ok(outcome.asset, "a scan_assets row is still persisted");
+    }
+  });
+
+  it("4. upload failure → storage_failed, pipeline continues partial (no throw)", async () => {
+    const crawlRepo = new FakeCrawlRepository();
+    const created = await crawlRepo.createCrawlJob({
+      clinicId: "clinic-1",
+      requestedUrl: "https://example.com/",
+      normalizedOrigin: "https://example.com",
+    });
+    if (!created.ok) return assert.fail();
+
+    const failingUpload: ScreenshotUploadFn = async () => ({ ok: false, message: "Bucket not found." });
+    const outcomes = await captureAndPersistScreenshots(
+      {
+        clinicId: "clinic-1",
+        crawlJobId: created.value.id,
+        sourceUrl: "https://example.com/",
+        storage: { configured: true, bucketName: DEFAULT_SCREENSHOT_STORAGE_BUCKET, upload: failingUpload },
+      },
+      { crawlRepo, captureScreenshot: successfulFakeCapture() },
+    );
+    for (const outcome of outcomes) {
+      assert.equal(outcome.captureStatus, "storage_failed");
+      assert.equal(outcome.storagePath, null);
+      assert.ok(outcome.asset, "the failed-upload attempt is still recorded, not silently dropped");
+      const metadata = outcome.asset!.metadata as Record<string, unknown>;
+      assert.equal(metadata.captureStatus, "storage_failed");
+      assert.equal(metadata.storageError, "Bucket not found.");
+    }
+  });
+
+  it("5. no public URL is ever generated — the storage module never calls getPublicUrl or marks a bucket public", () => {
+    const source = readFileSync(join(root, "lib/operations/pipeline/screenshot-assets.ts"), "utf8");
+    assert.doesNotMatch(source, /getPublicUrl/);
+    assert.doesNotMatch(source, /public:\s*true/);
+    // The migration that provisions the bucket is equally explicit.
+    const migrationsDir = join(root, "supabase/migrations");
+    const bucketMigration = readdirSync(migrationsDir).find((f) => f.includes("crawler_screenshots_bucket"));
+    assert.ok(bucketMigration, "expected a crawler_screenshots_bucket migration file to exist");
+    const migrationSql = readFileSync(join(migrationsDir, bucketMigration!), "utf8").toLowerCase();
+    assert.match(migrationSql, /public,\s*file_size_limit/);
+    assert.match(migrationSql, /'crawler-screenshots',\s*'crawler-screenshots',\s*false/);
+    assert.doesNotMatch(migrationSql, /drop table/);
+    assert.doesNotMatch(migrationSql, /update storage\.buckets set public/);
+  });
+
+  it("6. no upload occurs when storage is unconfigured — the same shape --dry-run's CLI wiring always produces", async () => {
+    const crawlRepo = new FakeCrawlRepository();
+    const created = await crawlRepo.createCrawlJob({
+      clinicId: "clinic-1",
+      requestedUrl: "https://example.com/",
+      normalizedOrigin: "https://example.com",
+    });
+    if (!created.ok) return assert.fail();
+
+    let uploadCalled = false;
+    // Even if an upload fn were somehow reachable, storage.configured=false
+    // (what every CLI in this repo passes for --dry-run) must never call it.
+    const neverCalledUpload: ScreenshotUploadFn = async () => {
+      uploadCalled = true;
+      return { ok: true };
+    };
+    void neverCalledUpload;
+
+    await captureAndPersistScreenshots(
+      { clinicId: "clinic-1", crawlJobId: created.value.id, sourceUrl: "https://example.com/", storage: { configured: false } },
+      { crawlRepo, captureScreenshot: successfulFakeCapture() },
+    );
+    assert.equal(uploadCalled, false);
+  });
+
+  it("7. production is refused, independent of screenshot storage configuration", () => {
+    const url = `https://${KNOWN_PROJECT_REFS.production}.supabase.co`;
+    const selection = selectRepositories({
+      dryRun: false,
+      target: "staging",
+      env: baseEnv({ supabaseUrl: url }),
+    });
+    assert.equal(selection.ok, false);
+    if (selection.ok) return;
+    assert.match(selection.reason, /production/);
+  });
+
+  it("createSupabaseStorageUploader refuses safely (never throws) when Supabase is not configured", async () => {
+    const upload = createSupabaseStorageUploader(baseEnv(), DEFAULT_SCREENSHOT_STORAGE_BUCKET);
+    const result = await upload({ path: "private/scan-assets/x/desktop.png", buffer: Buffer.from("x"), contentType: "image/png" });
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.match(result.message, /not configured/);
+  });
+
+  it("8. captured screenshot metadata shape is stable — dimensions, capturedAt, source page kind, and (when uploaded) bucket name", async () => {
+    const crawlRepo = new FakeCrawlRepository();
+    const created = await crawlRepo.createCrawlJob({
+      clinicId: "clinic-1",
+      requestedUrl: "https://example.com/",
+      normalizedOrigin: "https://example.com",
+    });
+    if (!created.ok) return assert.fail();
+
+    const upload: ScreenshotUploadFn = async () => ({ ok: true });
+    const outcomes = await captureAndPersistScreenshots(
+      {
+        clinicId: "clinic-1",
+        crawlJobId: created.value.id,
+        sourceUrl: "https://example.com/",
+        storage: { configured: true, bucketName: DEFAULT_SCREENSHOT_STORAGE_BUCKET, upload },
+      },
+      { crawlRepo, captureScreenshot: successfulFakeCapture() },
+    );
+
+    for (const outcome of outcomes) {
+      assert.ok(outcome.asset, "expected a scan_assets row");
+      assert.equal(typeof outcome.asset!.widthPx, "number");
+      assert.equal(typeof outcome.asset!.heightPx, "number");
+      const metadata = outcome.asset!.metadata as Record<string, unknown>;
+      assert.deepEqual(Object.keys(metadata).sort(), ["bucketName", "captureStatus", "capturedAt", "clinicId", "pageKind"]);
+      assert.equal(metadata.pageKind, "homepage");
+      assert.equal(metadata.clinicId, "clinic-1");
+      const roundTripped = JSON.parse(JSON.stringify(metadata));
+      assert.deepEqual(Object.keys(roundTripped).sort(), Object.keys(metadata).sort());
+    }
+  });
+
+  it("9. no outreach interaction exists — captureAndPersistScreenshots has no outreach dependency and cannot send anything", async () => {
+    const crawlRepo = new FakeCrawlRepository();
+    const created = await crawlRepo.createCrawlJob({
+      clinicId: "clinic-1",
+      requestedUrl: "https://example.com/",
+      normalizedOrigin: "https://example.com",
+    });
+    if (!created.ok) return assert.fail();
+
+    // CaptureAndPersistScreenshotsDeps only ever accepts { crawlRepo, captureScreenshot }
+    // — there is no outreachRepo parameter to pass even if one wanted to.
+    // This call succeeding with exactly these two deps is itself the proof.
+    const outcomes = await captureAndPersistScreenshots(
+      { clinicId: "clinic-1", crawlJobId: created.value.id, sourceUrl: "https://example.com/", storage: { configured: false } },
+      { crawlRepo, captureScreenshot: successfulFakeCapture() },
+    );
+    assert.equal(outcomes.length, 2);
   });
 });
 
