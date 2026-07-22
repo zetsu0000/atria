@@ -23,7 +23,8 @@
     "crawler:review-queue": "tsx scripts/crawler/review-queue.ts",
     "crawler:review-decision": "tsx scripts/crawler/review-decision.ts",
     "crawler:recalculate-score": "tsx scripts/crawler/recalculate-score.ts",
-    "crawler:regenerate-outreach-draft": "tsx scripts/crawler/regenerate-outreach-draft.ts"
+    "crawler:regenerate-outreach-draft": "tsx scripts/crawler/regenerate-outreach-draft.ts",
+    "crawler:check-outreach-approval-gate": "tsx scripts/crawler/check-outreach-approval-gate.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.7",
