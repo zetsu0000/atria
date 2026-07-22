@@ -31,12 +31,16 @@ describe("screenshot-capture: ScreenshotCaptureImpl contract", () => {
   it("a fake capture implementation satisfies the same contract callers depend on", async () => {
     const fakeCapture: ScreenshotCaptureImpl = async (options) => {
       const dims = viewportDimensions(options.viewport);
+      const buffer = Buffer.from("fixture-png-bytes");
       const result: CaptureScreenshotResult = {
         ok: true,
-        buffer: Buffer.from("fixture-png-bytes"),
+        buffer,
         contentType: "image/png",
         widthPx: dims.widthPx,
         heightPx: dims.heightPx,
+        originalSizeBytes: buffer.length,
+        optimizedSizeBytes: null,
+        optimizationStrategy: "viewport_only",
       };
       return result;
     };

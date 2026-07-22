@@ -20,6 +20,14 @@
  * Never throws: a capture or upload failure is persisted as a safe fallback
  * outcome and reported back, so the calling pipeline can continue as
  * `partial` rather than fail the whole job.
+ *
+ * Size-aware upload: `metadata.originalSizeBytes` / `optimizedSizeBytes` /
+ * `optimizationStrategy` are always recorded for a successful capture (see
+ * lib/crawler/screenshot-capture.ts for how the optional, bounded,
+ * dependency-free height-reduction retry works). An upload is never even
+ * attempted for a screenshot still over MAX_SCREENSHOT_UPLOAD_BYTES after
+ * that — it goes straight to `storage_failed` with a specific reason,
+ * never a wasted network call.
  */
 import type { CrawlRepository } from "@/lib/operations/repositories/crawl-repository";
 import type { ScanAssetRecord } from "@/lib/operations/repositories/types";
@@ -27,7 +35,7 @@ import { getOperationsServiceClient } from "@/lib/operations/supabase/server-cli
 import type { LeadCaptureEnv } from "@/lib/security/env";
 import type { ScanAssetType } from "@/lib/crawler/screenshot-metadata";
 import type { CaptureScreenshotResult, ScreenshotCaptureImpl, ScreenshotViewport } from "@/lib/crawler/screenshot-capture";
-import { viewportDimensions } from "@/lib/crawler/screenshot-capture";
+import { MAX_SCREENSHOT_UPLOAD_BYTES, viewportDimensions } from "@/lib/crawler/screenshot-capture";
 
 /**
  * Expected private Supabase Storage bucket name for crawler screenshots.
@@ -84,6 +92,15 @@ function assetTypeFor(viewport: ScreenshotViewport): ScanAssetType {
 
 function storagePathFor(crawlJobId: string, viewport: ScreenshotViewport): string {
   return `private/scan-assets/${crawlJobId}/${viewport}.png`;
+}
+
+/** Extracted once per successful capture and included in every metadata write below, regardless of outcome (pending_storage/storage_failed/captured). */
+function optimizationMetadataFor(captured: Extract<CaptureScreenshotResult, { ok: true }>) {
+  return {
+    originalSizeBytes: captured.originalSizeBytes,
+    optimizedSizeBytes: captured.optimizedSizeBytes,
+    optimizationStrategy: captured.optimizationStrategy,
+  };
 }
 
 export async function captureAndPersistScreenshots(
@@ -149,6 +166,7 @@ export async function captureAndPersistScreenshots(
           clinicId: input.clinicId,
           captureStatus: "pending_storage",
           capturedAt,
+          ...optimizationMetadataFor(captured),
         },
       });
       outcomes.push({
@@ -157,6 +175,43 @@ export async function captureAndPersistScreenshots(
         captureStatus: "pending_storage",
         storagePath: null,
         asset: saved.ok ? saved.value : null,
+      });
+      continue;
+    }
+
+    // Never even attempt an upload over the bucket's own size limit — a
+    // doomed request only wastes a network round trip and surfaces as a
+    // vague provider-side error. This is checked after capture-time
+    // optimization already had its one bounded attempt (see
+    // lib/crawler/screenshot-capture.ts) — if it's still oversized here,
+    // that attempt didn't get it under the limit, and this is where that
+    // is turned into a specific, honest storage_failed reason.
+    if (captured.buffer.length > MAX_SCREENSHOT_UPLOAD_BYTES) {
+      const saved = await deps.crawlRepo.saveAsset({
+        crawlJobId: input.crawlJobId,
+        assetType,
+        storagePath: "",
+        contentType: captured.contentType,
+        widthPx: captured.widthPx,
+        heightPx: captured.heightPx,
+        pageUrl: input.sourceUrl,
+        reviewStatus: "pending_review",
+        metadata: {
+          pageKind: "homepage",
+          clinicId: input.clinicId,
+          captureStatus: "storage_failed",
+          storageError: `Screenshot (${captured.buffer.length} bytes) exceeds the storage bucket's ${MAX_SCREENSHOT_UPLOAD_BYTES}-byte limit even after optimization; upload was not attempted.`,
+          capturedAt,
+          ...optimizationMetadataFor(captured),
+        },
+      });
+      outcomes.push({
+        viewport,
+        assetType,
+        captureStatus: "storage_failed",
+        storagePath: null,
+        asset: saved.ok ? saved.value : null,
+        message: "Screenshot exceeds the storage bucket's size limit even after optimization.",
       });
       continue;
     }
@@ -180,6 +235,7 @@ export async function captureAndPersistScreenshots(
           captureStatus: "storage_failed",
           storageError: uploadResult.message,
           capturedAt,
+          ...optimizationMetadataFor(captured),
         },
       });
       outcomes.push({
@@ -208,6 +264,7 @@ export async function captureAndPersistScreenshots(
         captureStatus: "captured",
         bucketName: input.storage.bucketName,
         capturedAt,
+        ...optimizationMetadataFor(captured),
       },
     });
     outcomes.push({
