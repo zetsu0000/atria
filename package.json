@@ -29,7 +29,8 @@
     "crawler:outreach-log:record": "tsx scripts/crawler/record-manual-outreach-log.ts",
     "crawler:outreach-log:list": "tsx scripts/crawler/list-manual-outreach-logs.ts",
     "crawler:operator-preflight": "tsx scripts/crawler/operator-preflight.ts",
-    "crawler:prioritize-prospects": "tsx scripts/crawler/prioritize-prospects.ts"
+    "crawler:prioritize-prospects": "tsx scripts/crawler/prioritize-prospects.ts",
+    "crawler:commercial-templates": "tsx scripts/crawler/generate-commercial-template-pack.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.7",

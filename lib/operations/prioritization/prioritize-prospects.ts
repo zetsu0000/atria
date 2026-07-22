@@ -88,7 +88,15 @@ function clampTier(score: number): PriorityTier {
   return "blocked";
 }
 
-async function prioritizeClinic(
+/**
+ * Exported so other read-only modules (e.g. the commercial template
+ * builder, lib/operations/commercial-templates/) can score a single,
+ * already-fetched clinic/candidate the exact same way this ranking does
+ * — without refetching the full list — guaranteeing the tier shown
+ * elsewhere always agrees with the tier `prioritizeProspects` itself
+ * would produce for that same record.
+ */
+export async function prioritizeClinic(
   clinic: ClinicRecord,
   deps: PrioritizeProspectsDeps,
   now: Date,
@@ -254,7 +262,8 @@ async function prioritizeClinic(
   };
 }
 
-function prioritizeCandidate(candidate: ProspectCandidateRecord): PrioritizedProspect {
+/** Exported for the same reason as prioritizeClinic above. */
+export function prioritizeCandidate(candidate: ProspectCandidateRecord): PrioritizedProspect {
   const reasons: string[] = [];
   const blockers: string[] = [];
   let score = 50;
