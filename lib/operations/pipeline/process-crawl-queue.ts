@@ -15,13 +15,27 @@
  * assets and the outreach draft (if any) is built *after* screenshots so
  * its evidence can mention them — a screenshot failure never fails the
  * whole job, only that asset's own outcome.
+ *
+ * Before creating a fresh crawl job for a clinic (the `clinicIds` path
+ * only — a resumed `crawlJobIds` job keeps whatever `requestedUrl` it was
+ * already created with), a plain `http://` starting URL is safely
+ * canonicalized to `https://` when doing so is verifiably safe — see
+ * `canonicalizeHttpToHttpsIfSafe` (lib/crawler/url-policy.ts) and
+ * docs/technical/crawler-http-origin-fetch-fix.md for why: many real
+ * sites unconditionally redirect http:// to https:// on the same host,
+ * which the bounded crawl loop's own (correct, unweakened) same-origin
+ * guard refuses to follow — so starting the crawl on https:// directly
+ * avoids that entirely. This only ever runs when `allowRealCrawl` is
+ * true, reuses the same host-allowlist-gated `lookupImpl` as everything
+ * else in this module, and never changes host — see the function's own
+ * docstring for the full safety contract.
  */
 import { runCrawlJob, type RunCrawlJobDeps, type RunCrawlJobResult } from "@/lib/operations/run-crawl-job";
 import { calculatePlaceholderScore } from "@/lib/score/calculate";
 import { buildOutreachDraft } from "@/lib/outreach/draft";
 import type { ScoreRecord } from "@/lib/operations/repositories/types";
-import type { LookupFn } from "@/lib/crawler/url-policy";
-import { createControlledLookup } from "./controlled-transport";
+import { canonicalizeHttpToHttpsIfSafe, type LookupFn } from "@/lib/crawler/url-policy";
+import { createControlledLookup, resolveAllowedRealCrawlHostnames } from "./controlled-transport";
 import {
   captureAndPersistScreenshots,
   type CaptureAndPersistScreenshotsDeps,
@@ -43,12 +57,24 @@ export type ProcessCrawlQueueInput = {
   captureScreenshots?: boolean;
   screenshotTimeoutMs?: number;
   screenshotStorage?: ScreenshotStorageConfig;
+  /**
+   * Same list passed to `createControlledLookup`/`createControlledFetchHtmlPage`
+   * for this invocation (the CLI's `--approved-domains`). Used only to let
+   * the http-to-https starting-URL canonicalization accept an explicitly
+   * approved cross-host redirect (e.g. `www.` -> apex) — see
+   * `canonicalizeHttpToHttpsIfSafe`'s docstring. Never widens any other
+   * guard; the SSRF check is still independently re-run against any
+   * cross-host target before it's ever accepted.
+   */
+  approvedRealCrawlHostnames?: readonly string[];
 };
 
 export type ProcessCrawlQueueDeps = RunCrawlJobDeps &
   Partial<CaptureAndPersistScreenshotsDeps> & {
     /** Overridable for tests — defaults to lib/operations/pipeline/controlled-transport.ts's createControlledLookup. */
     lookupImpl?: LookupFn;
+    /** Overridable for tests — defaults to the real global fetch. Used only for the single, bounded https:// preflight request in canonicalizeHttpToHttpsIfSafe; never used for the crawl itself. */
+    httpsPreflightFetchImpl?: typeof fetch;
   };
 
 export type ProcessedJobOutcome = {
@@ -185,10 +211,27 @@ export async function processCrawlQueue(
       continue;
     }
 
+    let requestedUrl = clinicResult.value.websiteUrl;
+    let httpsCanonicalization: { originalUrl: string; canonicalUrl: string; reason: string } | null = null;
+    if (input.allowRealCrawl && requestedUrl.startsWith("http://")) {
+      const canonicalized = await canonicalizeHttpToHttpsIfSafe(requestedUrl, {
+        lookupImpl,
+        fetchImpl: deps.httpsPreflightFetchImpl,
+        additionalApprovedHostnames: resolveAllowedRealCrawlHostnames({
+          allowRealCrawl: input.allowRealCrawl,
+          approvedRealCrawlHostnames: input.approvedRealCrawlHostnames,
+        }),
+      });
+      if (canonicalized.upgraded) {
+        httpsCanonicalization = { originalUrl: requestedUrl, canonicalUrl: canonicalized.url, reason: canonicalized.reason };
+        requestedUrl = canonicalized.url;
+      }
+    }
+
     const result = await runCrawlJob(
       {
         clinicId,
-        requestedUrl: clinicResult.value.websiteUrl,
+        requestedUrl,
         maxPages,
         delayMs,
         lookupImpl,
@@ -196,6 +239,15 @@ export async function processCrawlQueue(
       },
       deps,
     );
+    if (httpsCanonicalization && result.ok) {
+      await deps.crawlRepo.recordFinding(result.job.id, {
+        category: "ops",
+        severity: "info",
+        code: "http_to_https_canonicalized",
+        summary: `Starting URL upgraded from ${httpsCanonicalization.originalUrl} to ${httpsCanonicalization.canonicalUrl} before crawling (${httpsCanonicalization.reason}).`,
+        details: httpsCanonicalization,
+      });
+    }
     const { screenshots, updatedScore, deferredOutreachDraftId } = await afterCrawl(result, clinicId);
     processed.push({
       clinicId,

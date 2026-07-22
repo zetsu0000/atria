@@ -41,6 +41,8 @@ export type RunControlledPipelineInput = {
   captureScreenshots?: boolean;
   screenshotTimeoutMs?: number;
   screenshotStorage?: ScreenshotStorageConfig;
+  /** Passed straight through to processCrawlQueue — see its own docs. */
+  approvedRealCrawlHostnames?: readonly string[];
 };
 
 export type RunControlledPipelineDeps = ProcessCrawlQueueDeps & { discoveryRepo: DiscoveryRepository };
@@ -82,6 +84,7 @@ export async function runControlledPipeline(
       captureScreenshots: input.captureScreenshots,
       screenshotTimeoutMs: input.screenshotTimeoutMs,
       screenshotStorage: input.screenshotStorage,
+      approvedRealCrawlHostnames: input.approvedRealCrawlHostnames,
     },
     deps,
   );

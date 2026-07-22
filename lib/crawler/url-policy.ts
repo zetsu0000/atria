@@ -1,7 +1,7 @@
 import { lookup as dnsLookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import type { CrawlErrorCode } from "./errors";
-import type { ValidatedPublicUrl } from "./types";
+import { CRAWLER_ACCEPT, CRAWLER_USER_AGENT, type ValidatedPublicUrl } from "./types";
 
 const BLOCKED_HOSTNAMES = new Set([
   "localhost",
@@ -296,6 +296,152 @@ export function isSameOrigin(
 
 function defaultPort(protocol: string): string {
   return protocol === "https:" ? "443" : "80";
+}
+
+export type CanonicalizeHttpUpgradeResult = {
+  url: string;
+  upgraded: boolean;
+  reason: string;
+};
+
+/**
+ * Safely upgrades a same-host http:// *starting* URL to https:// before a
+ * crawl begins, when doing so is verifiably safe. This is never a general
+ * redirect-following mechanism, and it never loosens `isSameOrigin` above.
+ *
+ * Root cause this addresses: `isSameOrigin`'s scheme check is a
+ * deliberate, correct SSRF/redirect-safety boundary — a mid-crawl
+ * http-to-https redirect really is a different origin by that strict
+ * definition, and the bounded crawl loop (lib/crawler/fetch-page.ts) must
+ * keep refusing to follow it. But a great many real sites unconditionally
+ * redirect every http:// request to https:// on the identical host (a
+ * completely standard, safe practice) — so starting the crawl on http://
+ * when the site is really only ever served on https:// means the very
+ * first request already trips that boundary, and the crawl fails with
+ * zero pages fetched before it ever begins. Canonicalizing the *starting*
+ * URL once, here, before the bounded crawl loop starts, means the crawl
+ * begins already on https:// — `isSameOrigin`'s scheme check is then
+ * satisfied naturally, with its strictness completely intact for
+ * everything that follows.
+ *
+ * Upgrades ONLY when every one of the following holds, in order:
+ *  1. The input URL's scheme is exactly `http:` (anything else, including
+ *     a malformed URL, returns unchanged with `upgraded: false`).
+ *  2. The candidate `https://` URL — identical host, identical path/query,
+ *     default port only — passes the existing SSRF/private-IP guard
+ *     (`resolveAndValidatePublicUrl`), using whatever `lookupImpl` the
+ *     caller provides. Callers MUST pass the same host-allowlist-gated
+ *     `lookupImpl` used elsewhere in the pipeline (e.g.
+ *     `createControlledLookup`'s return value) — that lookup throws for
+ *     any non-approved hostname, which `resolveAndValidatePublicUrl`
+ *     turns into a normal `dns_failed` guard failure here, so a
+ *     non-approved host is refused before any HTTPS network call is ever
+ *     made. This function performs no host-allowlist logic of its own.
+ *  3. A single, bounded, non-redirect-following preflight request
+ *     (`redirect: "manual"`, one attempt, no body read) to that validated
+ *     https:// URL succeeds — any 2xx, or a 3xx whose `Location` header
+ *     stays on the identical hostname (never followed further). A 3xx to
+ *     a *different* host is refused UNLESS that exact target hostname is
+ *     listed in `options.additionalApprovedHostnames` (e.g. the very
+ *     common `www.` <-> apex-domain canonicalization many real sites
+ *     perform alongside their http->https redirect) — and even then, the
+ *     cross-host target is independently re-validated through the full
+ *     SSRF/private-IP guard (a fresh `resolveAndValidatePublicUrl` call)
+ *     before ever being accepted; being on the approved-hostnames list
+ *     alone is never sufficient by itself.
+ *
+ * On any failure of any of the above, the original http:// URL is
+ * returned unchanged (`upgraded: false`) and the normal crawl flow
+ * proceeds exactly as it did before this function existed — this can
+ * never make behavior worse than the pre-fix baseline, only better.
+ */
+export async function canonicalizeHttpToHttpsIfSafe(
+  rawUrl: string,
+  options: {
+    lookupImpl?: LookupFn;
+    fetchImpl?: typeof fetch;
+    timeoutMs?: number;
+    /**
+     * Hostnames explicitly approved as a preflight redirect target, even
+     * when they differ from the input URL's own host — the real-crawl
+     * domain allowlist (`ALLOWED_REAL_CRAWL_HOSTNAMES` +
+     * `--approved-domains`, see controlled-transport.ts). Suffix-matched
+     * the same way as that allowlist (exact match or `.`-suffix match);
+     * never wildcards. A redirect to any other host is always refused.
+     */
+    additionalApprovedHostnames?: readonly string[];
+  } = {},
+): Promise<CanonicalizeHttpUpgradeResult> {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return { url: rawUrl, upgraded: false, reason: "invalid_url" };
+  }
+  if (parsed.protocol !== "http:") {
+    return { url: rawUrl, upgraded: false, reason: "not_http" };
+  }
+
+  const httpsUrl = new URL(rawUrl);
+  httpsUrl.protocol = "https:";
+  if (httpsUrl.port === "80") httpsUrl.port = "";
+
+  const validated = await resolveAndValidatePublicUrl(httpsUrl.href, options.lookupImpl);
+  if (!validated.ok) {
+    return { url: rawUrl, upgraded: false, reason: `ssrf_guard_failed:${validated.code}` };
+  }
+
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const timeoutMs = options.timeoutMs ?? 5000;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetchImpl(validated.url.href, {
+      method: "GET",
+      redirect: "manual",
+      signal: controller.signal,
+      headers: { "user-agent": CRAWLER_USER_AGENT, accept: CRAWLER_ACCEPT },
+    });
+
+    if ([301, 302, 303, 307, 308].includes(response.status)) {
+      const location = response.headers.get("location");
+      if (!location) {
+        return { url: rawUrl, upgraded: false, reason: "https_preflight_redirect_no_location" };
+      }
+      let target: URL;
+      try {
+        target = new URL(location, validated.url.href);
+      } catch {
+        return { url: rawUrl, upgraded: false, reason: "https_preflight_redirect_invalid" };
+      }
+      if (normalizeHostname(target.hostname) !== normalizeHostname(parsed.hostname)) {
+        const targetHost = normalizeHostname(target.hostname);
+        const isExplicitlyApproved = (options.additionalApprovedHostnames ?? []).some((entry) => {
+          const approved = normalizeHostname(entry);
+          return targetHost === approved || targetHost.endsWith(`.${approved}`);
+        });
+        if (!isExplicitlyApproved) {
+          return { url: rawUrl, upgraded: false, reason: "https_preflight_redirect_cross_host" };
+        }
+        const crossHostValidated = await resolveAndValidatePublicUrl(target.href, options.lookupImpl);
+        if (!crossHostValidated.ok) {
+          return { url: rawUrl, upgraded: false, reason: `ssrf_guard_failed_cross_host:${crossHostValidated.code}` };
+        }
+        return { url: crossHostValidated.url.href, upgraded: true, reason: "http_to_https_cross_host_redirect_approved" };
+      }
+      return { url: target.href, upgraded: true, reason: "http_to_https_same_host_redirect" };
+    }
+
+    if (response.status >= 200 && response.status < 400) {
+      return { url: validated.url.href, upgraded: true, reason: "http_to_https_preflight_ok" };
+    }
+
+    return { url: rawUrl, upgraded: false, reason: `https_preflight_status_${response.status}` };
+  } catch {
+    return { url: rawUrl, upgraded: false, reason: "https_preflight_failed" };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 const TRACKING_PARAMS = new Set([

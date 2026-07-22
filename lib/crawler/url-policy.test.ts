@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  canonicalizeHttpToHttpsIfSafe,
   isBlockedIpAddress,
   isSameOrigin,
   normalizeCrawlUrl,
@@ -8,6 +9,7 @@ import {
   resolveAndValidatePublicUrl,
   shouldSkipPath,
 } from "./url-policy";
+import type { LookupFn } from "./url-policy";
 
 describe("url-policy", () => {
   it("accepts valid public HTTPS URL", () => {
@@ -142,5 +144,164 @@ describe("url-policy", () => {
       async () => [{ address: "169.254.169.254", family: 4 }],
     );
     assert.equal(result.ok, false);
+  });
+});
+
+describe("canonicalizeHttpToHttpsIfSafe", () => {
+  const PUBLIC_LOOKUP: LookupFn = async () => [{ address: "93.184.216.34", family: 4 }];
+
+  function fetchReturning(status: number, headers: Record<string, string> = {}): typeof fetch {
+    return (async () => new Response(null, { status, headers })) as unknown as typeof fetch;
+  }
+
+  it("1. an http:// URL whose https:// counterpart passes the SSRF guard and a healthy preflight is canonicalized to https:// on the identical host", async () => {
+    const result = await canonicalizeHttpToHttpsIfSafe("http://clinic.example.com/sobre", {
+      lookupImpl: PUBLIC_LOOKUP,
+      fetchImpl: fetchReturning(200),
+    });
+    assert.equal(result.upgraded, true);
+    assert.equal(result.url, "https://clinic.example.com/sobre");
+    assert.equal(result.reason, "http_to_https_preflight_ok");
+  });
+
+  it("2. an https:// input is returned unchanged, without ever calling lookupImpl or fetchImpl", async () => {
+    let lookupCalled = false;
+    let fetchCalled = false;
+    const result = await canonicalizeHttpToHttpsIfSafe("https://clinic.example.com/", {
+      lookupImpl: async () => {
+        lookupCalled = true;
+        return [{ address: "93.184.216.34", family: 4 }];
+      },
+      fetchImpl: (async () => {
+        fetchCalled = true;
+        return new Response(null, { status: 200 });
+      }) as unknown as typeof fetch,
+    });
+    assert.equal(result.upgraded, false);
+    assert.equal(result.url, "https://clinic.example.com/");
+    assert.equal(result.reason, "not_http");
+    assert.equal(lookupCalled, false);
+    assert.equal(fetchCalled, false);
+  });
+
+  it("3+7. a host that the caller's lookupImpl rejects (simulating a non-allowlisted host) is never upgraded and never preflighted", async () => {
+    let fetchCalled = false;
+    const rejectingLookup: LookupFn = async (hostname) => {
+      throw new Error(`blocked_host: ${hostname} is not in the controlled-automation allowlist`);
+    };
+    const result = await canonicalizeHttpToHttpsIfSafe("http://not-approved.example.org/", {
+      lookupImpl: rejectingLookup,
+      fetchImpl: (async () => {
+        fetchCalled = true;
+        return new Response(null, { status: 200 });
+      }) as unknown as typeof fetch,
+    });
+    assert.equal(result.upgraded, false);
+    assert.equal(result.url, "http://not-approved.example.org/");
+    assert.match(result.reason, /^ssrf_guard_failed:/);
+    assert.equal(fetchCalled, false);
+  });
+
+  it("4. a preflight redirect to a different host is refused, never upgraded", async () => {
+    const result = await canonicalizeHttpToHttpsIfSafe("http://clinic.example.com/", {
+      lookupImpl: PUBLIC_LOOKUP,
+      fetchImpl: fetchReturning(302, { location: "https://totally-different.example.net/" }),
+    });
+    assert.equal(result.upgraded, false);
+    assert.equal(result.url, "http://clinic.example.com/");
+    assert.equal(result.reason, "https_preflight_redirect_cross_host");
+  });
+
+  it("a preflight redirect that stays on the identical host is accepted as the canonical URL", async () => {
+    const result = await canonicalizeHttpToHttpsIfSafe("http://clinic.example.com/", {
+      lookupImpl: PUBLIC_LOOKUP,
+      fetchImpl: fetchReturning(301, { location: "https://clinic.example.com/home" }),
+    });
+    assert.equal(result.upgraded, true);
+    assert.equal(result.url, "https://clinic.example.com/home");
+    assert.equal(result.reason, "http_to_https_same_host_redirect");
+  });
+
+  it("4b. a cross-host redirect (e.g. www -> apex) is accepted ONLY when the target host is explicitly in additionalApprovedHostnames, and is independently re-validated through the SSRF guard", async () => {
+    // Real-world case found in staging: https://www.cepelle.com.br/ redirects to https://cepelle.com.br/ (apex, not just a scheme change).
+    const result = await canonicalizeHttpToHttpsIfSafe("http://www.cepelle.com.br/", {
+      lookupImpl: PUBLIC_LOOKUP,
+      fetchImpl: fetchReturning(301, { location: "https://cepelle.com.br/" }),
+      additionalApprovedHostnames: ["cepelle.com.br", "www.cepelle.com.br"],
+    });
+    assert.equal(result.upgraded, true);
+    assert.equal(result.url, "https://cepelle.com.br/");
+    assert.equal(result.reason, "http_to_https_cross_host_redirect_approved");
+
+    // Without the target host on the approved list, the exact same redirect is refused.
+    const withoutApproval = await canonicalizeHttpToHttpsIfSafe("http://www.cepelle.com.br/", {
+      lookupImpl: PUBLIC_LOOKUP,
+      fetchImpl: fetchReturning(301, { location: "https://cepelle.com.br/" }),
+      additionalApprovedHostnames: ["www.cepelle.com.br"],
+    });
+    assert.equal(withoutApproval.upgraded, false);
+    assert.equal(withoutApproval.reason, "https_preflight_redirect_cross_host");
+  });
+
+  it("4c. an approved-by-name cross-host redirect target is still refused if it independently fails the SSRF guard (e.g. resolves to a private IP)", async () => {
+    const rebindingLookup: LookupFn = async (hostname) =>
+      hostname === "cepelle.com.br" ? [{ address: "127.0.0.1", family: 4 }] : [{ address: "93.184.216.34", family: 4 }];
+    const result = await canonicalizeHttpToHttpsIfSafe("http://www.cepelle.com.br/", {
+      lookupImpl: rebindingLookup,
+      fetchImpl: fetchReturning(301, { location: "https://cepelle.com.br/" }),
+      additionalApprovedHostnames: ["cepelle.com.br", "www.cepelle.com.br"],
+    });
+    assert.equal(result.upgraded, false);
+    assert.match(result.reason, /^ssrf_guard_failed_cross_host:/);
+  });
+
+  it("5. a private/loopback resolved address is blocked by the SSRF guard, never upgraded, never preflighted", async () => {
+    let fetchCalled = false;
+    const privateLookup: LookupFn = async () => [{ address: "127.0.0.1", family: 4 }];
+    const result = await canonicalizeHttpToHttpsIfSafe("http://clinic.example.com/", {
+      lookupImpl: privateLookup,
+      fetchImpl: (async () => {
+        fetchCalled = true;
+        return new Response(null, { status: 200 });
+      }) as unknown as typeof fetch,
+    });
+    assert.equal(result.upgraded, false);
+    assert.equal(result.reason, "ssrf_guard_failed:blocked_host");
+    assert.equal(fetchCalled, false);
+  });
+
+  it("6. a connection/TLS-level failure during the preflight leaves the URL unchanged — no bypass", async () => {
+    const throwingFetch: typeof fetch = (async () => {
+      throw new Error("simulated TLS failure");
+    }) as unknown as typeof fetch;
+    const result = await canonicalizeHttpToHttpsIfSafe("http://clinic.example.com/", {
+      lookupImpl: PUBLIC_LOOKUP,
+      fetchImpl: throwingFetch,
+    });
+    assert.equal(result.upgraded, false);
+    assert.equal(result.url, "http://clinic.example.com/");
+    assert.equal(result.reason, "https_preflight_failed");
+  });
+
+  it("a non-2xx/3xx preflight response is not upgraded", async () => {
+    const result = await canonicalizeHttpToHttpsIfSafe("http://clinic.example.com/", {
+      lookupImpl: PUBLIC_LOOKUP,
+      fetchImpl: fetchReturning(500),
+    });
+    assert.equal(result.upgraded, false);
+    assert.equal(result.reason, "https_preflight_status_500");
+  });
+
+  it("12. the result is deterministic — identical inputs produce an identical result object", async () => {
+    const options = { lookupImpl: PUBLIC_LOOKUP, fetchImpl: fetchReturning(200) };
+    const a = await canonicalizeHttpToHttpsIfSafe("http://clinic.example.com/pagina", options);
+    const b = await canonicalizeHttpToHttpsIfSafe("http://clinic.example.com/pagina", options);
+    assert.deepEqual(a, b);
+  });
+
+  it("an invalid URL never crashes — returns upgraded: false", async () => {
+    const result = await canonicalizeHttpToHttpsIfSafe("not a url", {});
+    assert.equal(result.upgraded, false);
+    assert.equal(result.reason, "invalid_url");
   });
 });

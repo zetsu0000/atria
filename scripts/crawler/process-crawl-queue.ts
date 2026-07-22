@@ -115,6 +115,7 @@ async function main(): Promise<void> {
       captureScreenshots,
       screenshotTimeoutMs,
       screenshotStorage,
+      approvedRealCrawlHostnames: approvedDomains,
     },
     deps,
   );
