@@ -39,6 +39,15 @@ export type BuildOutreachDraftInput = {
 
 /**
  * Build a local outreach draft. Never sends messages.
+ *
+ * First-contact copy is deliberately short and soft — a small, specific
+ * observation about digital presence, not a data dump. The full
+ * evidence list (every `observation`) is still preserved verbatim in
+ * `draft.evidence` for a human reviewer/audit trail; it is never
+ * enumerated in the message body itself. This is a deliberate choice
+ * (docs/technical/crawler-skinlaser-review-copy-polish.md): a message
+ * listing 10+ raw evidence bullets reads as an automated scrape, not a
+ * human reaching out — the opposite of the tone this product needs.
  */
 export function buildOutreachDraft(
   input: BuildOutreachDraftInput,
@@ -59,30 +68,22 @@ export function buildOutreachDraft(
     };
   }
 
-  const bullets = input.observations
-    .map((o) => `- ${o.observation}`)
-    .join("\n");
-
   const body =
     input.channel === "email"
       ? [
           `Olá, equipe da ${input.clinicDisplayName},`,
           "",
-          "Analisamos apenas a apresentação digital pública do site e a facilidade de encontrar informações (não avaliamos qualidade médica).",
+          "Aqui é da Atria. Fizemos um raio-X rápido da primeira impressão digital do site de vocês — é só sobre a apresentação do site e a facilidade de encontrar informações, não avalia qualidade médica.",
           "",
-          "Observações preliminares (sujeitas a revisão humana):",
-          bullets,
-          "",
-          "Se fizer sentido, podemos mostrar uma prévia privada do primeiro bloco antes de qualquer publicação.",
+          "Encontramos alguns pontos que podem valer uma olhada rápida. Posso te mandar o resumo? Sem compromisso.",
           "",
           "Atenciosamente,",
           "Atria",
         ].join("\n")
       : [
-          `Olá! Aqui é da Atria.`,
-          `Vimos o site da ${input.clinicDisplayName} e preparamos observações só sobre a apresentação digital (não é avaliação médica):`,
-          bullets,
-          `Posso te enviar um link privado de prévia quando fizer sentido.`,
+          "Olá! Aqui é da Atria.",
+          `Fizemos um raio-X rápido da primeira impressão digital do site da ${input.clinicDisplayName} — é só sobre apresentação do site e facilidade de contato, não avalia qualidade médica.`,
+          "Posso te mandar o resumo?",
         ].join("\n");
 
   let clickToChatUrl: string | null = null;

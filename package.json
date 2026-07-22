@@ -22,7 +22,8 @@
     "crawler:review-pack": "tsx scripts/crawler/generate-human-review-pack.ts",
     "crawler:review-queue": "tsx scripts/crawler/review-queue.ts",
     "crawler:review-decision": "tsx scripts/crawler/review-decision.ts",
-    "crawler:recalculate-score": "tsx scripts/crawler/recalculate-score.ts"
+    "crawler:recalculate-score": "tsx scripts/crawler/recalculate-score.ts",
+    "crawler:regenerate-outreach-draft": "tsx scripts/crawler/regenerate-outreach-draft.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.7",
