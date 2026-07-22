@@ -172,6 +172,8 @@ describe("buildHumanReviewPack: complete package", () => {
     assert.equal(result.pack.clinicIdentity.displayName, "SkinLaser - Higienopolis");
     assert.equal(result.pack.websiteAnalyzed.crawlJobId, crawlJob.id);
     assert.equal(result.pack.scoreSummary.available, true);
+    // 11. score v1 flows through to the review pack automatically — no pack-layer code change needed.
+    assert.equal(result.pack.scoreSummary.scoringVersion, "v1");
     assert.equal(result.pack.screenshots.desktop.status, "pending_storage");
     assert.equal(result.pack.screenshots.mobile.status, "pending_storage");
     assert.ok(result.pack.internalSummary.length > 0);
@@ -421,6 +423,21 @@ describe("human review pack rendering: stable output shapes", () => {
       assert.ok(idx > lastIndex, `missing or out-of-order heading: ${heading}`);
       lastIndex = idx;
     }
+  });
+
+  it("renders score v1 — the pack's scoring-version line reflects the new model without any pack-layer code change", async () => {
+    const deps = buildDeps();
+    const clinic = await seedClinic(deps, "pack-renders-score-v1");
+    const crawlJob = await seedCrawlJob(deps, clinic.id);
+    await seedScore(deps, crawlJob.id, clinic.id);
+
+    const result = await buildHumanReviewPack({ clinicId: clinic.id }, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.pack.scoreSummary.scoringVersion, "v1");
+
+    const markdown = renderHumanReviewPackMarkdown(result.pack);
+    assert.match(markdown, /Versão de scoring:\*\* v1/);
   });
 
   it("13. JSON pack shape is stable and includes every required top-level section", async () => {

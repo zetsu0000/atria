@@ -68,6 +68,7 @@ async function main(): Promise<void> {
       pageCount: 1,
       hasDesktopScreenshotMeta: true,
       hasMobileScreenshotMeta: true,
+      requestedUrl: pageUrl,
     });
     const assets = [
       buildScreenshotAssetMetadata({

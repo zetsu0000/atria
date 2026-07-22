@@ -157,6 +157,8 @@ describe("buildOperationalReport: complete report", () => {
     assert.equal(result.report.clinicIdentity.displayName, "Clínica Relatório");
     assert.equal(result.report.websiteAnalyzed.crawlJobId, crawlJob.id);
     assert.equal(result.report.scoreSummary.available, true);
+    // 11. score v1 flows through to the report automatically — no report-layer code change needed.
+    assert.equal(result.report.scoreSummary.scoringVersion, "v1");
     assert.equal(result.report.screenshots.desktop.status, "captured");
     assert.equal(result.report.screenshots.mobile.status, "captured");
     assert.equal(result.report.extractedContentSummary.available, true);
@@ -364,6 +366,22 @@ describe("report rendering: stable output shapes", () => {
       first,
       /Esta análise avalia apenas a apresentação digital e a facilidade de encontrar informações\. Não avalia qualidade médica\./,
     );
+  });
+
+  it("11. renders score v1 — the report's scoring-version line reflects the new model without any report-code change", async () => {
+    const deps = buildDeps();
+    const clinic = await seedClinic(deps, "renders-score-v1");
+    const crawlJob = await seedCrawlJob(deps, clinic.id);
+    const score = calculatePlaceholderScore({ candidates: SAMPLE_CANDIDATES, pageCount: 2 });
+    await deps.scoreRepo.saveScore({ crawlJobId: crawlJob.id, clinicId: clinic.id, score });
+
+    const result = await buildOperationalReport({ clinicId: clinic.id }, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.report.scoreSummary.scoringVersion, "v1");
+
+    const markdown = renderOperationalReportMarkdown(result.report);
+    assert.match(markdown, /Versão de scoring:\*\* v1/);
   });
 
   it("JSON report shape is stable and includes every required top-level section", async () => {

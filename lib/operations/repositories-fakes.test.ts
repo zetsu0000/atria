@@ -420,7 +420,7 @@ describe("ExtractionRepository (fake)", () => {
 });
 
 describe("ScoreRepository (fake)", () => {
-  it("persists a placeholder score with five dimensions, total, evidence and disclaimer", async () => {
+  it("persists a v1 score with five dimensions, total, evidence and disclaimer", async () => {
     const repo = new FakeScoreRepository();
     const score = calculatePlaceholderScore({
       candidates: [
@@ -446,7 +446,7 @@ describe("ScoreRepository (fake)", () => {
     );
     assert.ok(saved.value.evidence.length > 0);
     assert.match(saved.value.disclaimer, /apresentação digital/);
-    assert.equal(saved.value.scoringVersion, "placeholder-v0");
+    assert.equal(saved.value.scoringVersion, "v1");
   });
 
   it("rejects a score with no crawl job and no clinic", async () => {

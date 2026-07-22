@@ -128,6 +128,7 @@ export async function processCrawlQueue(
         hasMobileScreenshotMeta: Boolean(mobileOutcome),
         desktopScreenshotAssetId: desktopOutcome?.asset?.id ?? null,
         mobileScreenshotAssetId: mobileOutcome?.asset?.id ?? null,
+        requestedUrl: result.job.requestedUrl,
       });
       const savedScore = await deps.scoreRepo.saveScore({
         crawlJobId: result.job.id,

@@ -533,6 +533,7 @@ export async function runCrawlJob(
       pageCount: pagesFetched,
       hasDesktopScreenshotMeta: assets.some((a) => a.assetType === "screenshot_desktop"),
       hasMobileScreenshotMeta: assets.some((a) => a.assetType === "screenshot_mobile"),
+      requestedUrl: job.requestedUrl,
     });
     const savedScore = await deps.scoreRepo.saveScore({
       crawlJobId: job.id,
