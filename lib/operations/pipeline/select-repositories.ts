@@ -11,6 +11,7 @@ import {
   FakeDiscoveryRepository,
   FakeExtractionRepository,
   FakeHumanReviewRepository,
+  FakeManualOutreachLogRepository,
   FakeOutreachRepository,
   FakeScoreRepository,
 } from "@/lib/operations/repositories/fakes";
@@ -21,6 +22,7 @@ import { createSupabaseExtractionRepository } from "@/lib/operations/supabase/ex
 import { createSupabaseScoreRepository } from "@/lib/operations/supabase/score-repository.supabase";
 import { createSupabaseOutreachRepository } from "@/lib/operations/supabase/outreach-repository.supabase";
 import { createSupabaseHumanReviewRepository } from "@/lib/operations/supabase/human-review-repository.supabase";
+import { createSupabaseManualOutreachLogRepository } from "@/lib/operations/supabase/manual-outreach-log-repository.supabase";
 import type { DiscoveryRepository } from "@/lib/operations/repositories/discovery-repository";
 import type { ClinicRepository } from "@/lib/operations/repositories/clinic-repository";
 import type { CrawlRepository } from "@/lib/operations/repositories/crawl-repository";
@@ -28,6 +30,7 @@ import type { ExtractionRepository } from "@/lib/operations/repositories/extract
 import type { ScoreRepository } from "@/lib/operations/repositories/score-repository";
 import type { OutreachRepository } from "@/lib/operations/repositories/outreach-repository";
 import type { HumanReviewRepository } from "@/lib/operations/repositories/human-review-repository";
+import type { ManualOutreachLogRepository } from "@/lib/operations/repositories/manual-outreach-log-repository";
 import { assertSafeTarget, type PipelineTarget } from "./target-guard";
 
 export type SelectRepositoriesOptions = {
@@ -45,6 +48,7 @@ export type SelectedRepositories = {
   scoreRepo: ScoreRepository;
   outreachRepo: OutreachRepository;
   humanReviewRepo: HumanReviewRepository;
+  manualOutreachLogRepo: ManualOutreachLogRepository;
   usedFakes: boolean;
 };
 
@@ -62,6 +66,7 @@ export function selectRepositories(options: SelectRepositoriesOptions): SelectRe
         scoreRepo: new FakeScoreRepository(),
         outreachRepo: new FakeOutreachRepository(),
         humanReviewRepo: new FakeHumanReviewRepository(),
+        manualOutreachLogRepo: new FakeManualOutreachLogRepository(),
         usedFakes: true,
       },
     };
@@ -86,6 +91,7 @@ export function selectRepositories(options: SelectRepositoriesOptions): SelectRe
       scoreRepo: createSupabaseScoreRepository(options.env),
       outreachRepo: createSupabaseOutreachRepository(options.env),
       humanReviewRepo: createSupabaseHumanReviewRepository(options.env),
+      manualOutreachLogRepo: createSupabaseManualOutreachLogRepository(options.env),
       usedFakes: false,
     },
   };

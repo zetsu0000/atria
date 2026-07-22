@@ -16,6 +16,7 @@ import type { ExtractionRepository } from "./extraction-repository";
 import type { ScoreRepository } from "./score-repository";
 import type { OutreachRepository } from "./outreach-repository";
 import type { HumanReviewRepository } from "./human-review-repository";
+import type { ManualOutreachLogRepository } from "./manual-outreach-log-repository";
 import { safeErrorMessage } from "@/lib/crawler/errors";
 import type {
   ClinicContactRecord,
@@ -29,12 +30,14 @@ import type {
   CreateDiscoveryJobInput,
   CreateExtractedContentInput,
   CreateHumanReviewDecisionInput,
+  CreateManualOutreachLogInput,
   CreateOutreachMessageInput,
   CreateScanAssetInput,
   CreateScoreInput,
   DiscoveryJobRecord,
   ExtractedContentRecord,
   HumanReviewDecisionRecord,
+  ManualOutreachLogRecord,
   OutreachMessageRecord,
   ProspectCandidateRecord,
   RecordCandidateInput,
@@ -622,6 +625,42 @@ export class FakeHumanReviewRepository implements HumanReviewRepository {
 
   async listDecisionsForClinic(clinicId: string) {
     const out = this.decisions.filter((d) => d.clinicId === clinicId);
+    return { ok: true as const, value: out };
+  }
+}
+
+export class FakeManualOutreachLogRepository implements ManualOutreachLogRepository {
+  logs: ManualOutreachLogRecord[] = [];
+
+  async recordLog(input: CreateManualOutreachLogInput) {
+    const now = nowIso();
+    const record: ManualOutreachLogRecord = {
+      id: randomUUID(),
+      clinicId: input.clinicId,
+      outreachMessageId: input.outreachMessageId,
+      humanReviewDecisionId: input.humanReviewDecisionId ?? null,
+      channel: input.channel,
+      eventType: input.eventType,
+      operatorName: input.operatorName,
+      occurredAt: input.occurredAt,
+      notes: input.notes ?? null,
+      responseReceived: input.responseReceived ?? null,
+      followUpNeeded: input.followUpNeeded ?? null,
+      followUpAt: input.followUpAt ?? null,
+      metadata: input.metadata ?? {},
+      createdAt: now,
+    };
+    this.logs.push(record);
+    return { ok: true as const, value: record };
+  }
+
+  async listForClinic(clinicId: string) {
+    const out = this.logs.filter((l) => l.clinicId === clinicId);
+    return { ok: true as const, value: out };
+  }
+
+  async listForOutreachMessage(outreachMessageId: string) {
+    const out = this.logs.filter((l) => l.outreachMessageId === outreachMessageId);
     return { ok: true as const, value: out };
   }
 }

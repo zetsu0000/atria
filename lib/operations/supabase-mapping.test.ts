@@ -6,6 +6,7 @@ import { mapCrawlJobRow, mapScanAssetRow, type DbCrawlJob, type DbScanAsset } fr
 import { mapExtractedContentRow, type DbExtractedContent } from "./supabase/extraction-repository.supabase";
 import { mapScoreRow, type DbScore } from "./supabase/score-repository.supabase";
 import { mapOutreachMessageRow, type DbOutreachMessage } from "./supabase/outreach-repository.supabase";
+import { mapManualOutreachLogRow, type DbManualOutreachLog } from "./supabase/manual-outreach-log-repository.supabase";
 
 /**
  * These tests exercise the Supabase row -> domain mapping functions
@@ -243,5 +244,46 @@ describe("Supabase payload mapping (no live Supabase)", () => {
     assert.equal(mapped.status, "draft");
     assert.equal(mapped.humanReviewed, false);
     assert.equal(mapped.doNotContactBlocked, false);
+  });
+
+  it("19. maps manual_outreach_logs rows to camelCase domain records, preserving nullable follow-up/response fields", () => {
+    const row: DbManualOutreachLog = {
+      id: "log-1",
+      clinic_id: "clinic-1",
+      outreach_message_id: "outreach-1",
+      human_review_decision_id: "decision-1",
+      channel: "whatsapp",
+      event_type: "manual_send_logged",
+      operator_name: "AB",
+      occurred_at: "2026-07-22T18:00:00.000Z",
+      notes: "Enviado via WhatsApp Web.",
+      response_received: null,
+      follow_up_needed: null,
+      follow_up_at: null,
+      metadata: { source: "cli" },
+      created_at: "2026-07-22T18:00:05.000Z",
+    };
+    const mapped = mapManualOutreachLogRow(row);
+    assert.equal(mapped.id, "log-1");
+    assert.equal(mapped.clinicId, "clinic-1");
+    assert.equal(mapped.outreachMessageId, "outreach-1");
+    assert.equal(mapped.humanReviewDecisionId, "decision-1");
+    assert.equal(mapped.eventType, "manual_send_logged");
+    assert.equal(mapped.operatorName, "AB");
+    assert.equal(mapped.responseReceived, null);
+    assert.equal(mapped.followUpNeeded, null);
+    assert.deepEqual(mapped.metadata, { source: "cli" });
+
+    const responseRow: DbManualOutreachLog = {
+      ...row,
+      id: "log-2",
+      event_type: "response_logged",
+      response_received: true,
+      follow_up_needed: false,
+      follow_up_at: null,
+    };
+    const mappedResponse = mapManualOutreachLogRow(responseRow);
+    assert.equal(mappedResponse.responseReceived, true);
+    assert.equal(mappedResponse.followUpNeeded, false);
   });
 });

@@ -460,3 +460,56 @@ export type CreateHumanReviewDecisionInput = {
   reviewer?: string | null;
   metadata?: Record<string, unknown>;
 };
+
+// ---------------------------------------------------------------------------
+// manual_outreach_logs
+// ---------------------------------------------------------------------------
+
+/**
+ * Append-only audit log of manual outreach operator actions taken
+ * *outside* this system (WhatsApp/email/phone), recorded after the fact.
+ * No provider integration exists anywhere in this codebase — this table
+ * is a log, never a send trigger. See
+ * docs/technical/crawler-manual-outreach-logging.md.
+ */
+export type ManualOutreachLogChannel = "whatsapp" | "email" | "phone" | "other";
+
+export type ManualOutreachLogEventType =
+  | "manual_send_logged"
+  | "response_logged"
+  | "follow_up_logged"
+  | "no_response_logged"
+  | "do_not_contact_logged"
+  | "rehearsal_logged";
+
+export type ManualOutreachLogRecord = {
+  id: string;
+  clinicId: string;
+  outreachMessageId: string;
+  humanReviewDecisionId: string | null;
+  channel: ManualOutreachLogChannel;
+  eventType: ManualOutreachLogEventType;
+  operatorName: string;
+  occurredAt: string;
+  notes: string | null;
+  responseReceived: boolean | null;
+  followUpNeeded: boolean | null;
+  followUpAt: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+};
+
+export type CreateManualOutreachLogInput = {
+  clinicId: string;
+  outreachMessageId: string;
+  humanReviewDecisionId?: string | null;
+  channel: ManualOutreachLogChannel;
+  eventType: ManualOutreachLogEventType;
+  operatorName: string;
+  occurredAt: string;
+  notes?: string | null;
+  responseReceived?: boolean | null;
+  followUpNeeded?: boolean | null;
+  followUpAt?: string | null;
+  metadata?: Record<string, unknown>;
+};
