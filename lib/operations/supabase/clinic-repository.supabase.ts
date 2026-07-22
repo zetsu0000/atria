@@ -157,6 +157,27 @@ export function createSupabaseClinicRepository(
       }
     },
 
+    async listClinics(limit: number): Promise<RepoResult<ClinicRecord[]>> {
+      const client = getOperationsServiceClient(env);
+      if (!client) return CONFIGURATION_ERROR;
+      try {
+        const { data, error } = await client
+          .from("clinics")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(limit)
+          .returns<DbClinic[]>();
+        if (error || !data) {
+          console.warn("[atria:operations] clinic_list_failed");
+          return UNAVAILABLE_ERROR;
+        }
+        return { ok: true, value: data.map(mapClinicRow) };
+      } catch {
+        console.warn("[atria:operations] clinic_list_exception");
+        return UNAVAILABLE_ERROR;
+      }
+    },
+
     async findClinicByDedupeKey(dedupeKey: string): Promise<RepoResult<ClinicRecord | null>> {
       const client = getOperationsServiceClient(env);
       if (!client) return CONFIGURATION_ERROR;

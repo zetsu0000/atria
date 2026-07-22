@@ -164,6 +164,11 @@ export class FakeDiscoveryRepository implements DiscoveryRepository {
     }
     return { ok: true as const, value: null };
   }
+
+  async listCandidates(limit: number) {
+    const sorted = [...this.candidates.values()].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+    return { ok: true as const, value: sorted.slice(0, limit) };
+  }
 }
 
 export class FakeClinicRepository implements ClinicRepository {
@@ -215,6 +220,11 @@ export class FakeClinicRepository implements ClinicRepository {
       if (clinic.dedupeKey === dedupeKey) return { ok: true as const, value: clinic };
     }
     return { ok: true as const, value: null };
+  }
+
+  async listClinics(limit: number) {
+    const sorted = [...this.clinics.values()].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+    return { ok: true as const, value: sorted.slice(0, limit) };
   }
 
   async updateNormalizedWebsiteHost(

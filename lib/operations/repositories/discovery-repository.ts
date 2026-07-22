@@ -46,6 +46,9 @@ export interface DiscoveryRepository {
 
   getCandidate(candidateId: string): Promise<RepoResult<ProspectCandidateRecord>>;
 
+  /** Most recently created candidates first, up to `limit`. Read-only listing used by the prospect prioritization layer. */
+  listCandidates(limit: number): Promise<RepoResult<ProspectCandidateRecord[]>>;
+
   findCandidateByDedupeKey(
     dedupeKey: string,
   ): Promise<RepoResult<ProspectCandidateRecord | null>>;

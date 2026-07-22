@@ -225,6 +225,27 @@ export function createSupabaseDiscoveryRepository(
       }
     },
 
+    async listCandidates(limit: number): Promise<RepoResult<ProspectCandidateRecord[]>> {
+      const client = getOperationsServiceClient(env);
+      if (!client) return CONFIGURATION_ERROR;
+      try {
+        const { data, error } = await client
+          .from("prospect_candidates")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(limit)
+          .returns<DbCandidate[]>();
+        if (error || !data) {
+          console.warn("[atria:operations] candidate_list_failed");
+          return UNAVAILABLE_ERROR;
+        }
+        return { ok: true, value: data.map(mapCandidateRow) };
+      } catch {
+        console.warn("[atria:operations] candidate_list_exception");
+        return UNAVAILABLE_ERROR;
+      }
+    },
+
     async findCandidateByDedupeKey(dedupeKey: string): Promise<RepoResult<ProspectCandidateRecord | null>> {
       const client = getOperationsServiceClient(env);
       if (!client) return CONFIGURATION_ERROR;

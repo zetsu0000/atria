@@ -58,6 +58,7 @@ next-env.d.ts
 /artifacts/reports/
 /artifacts/review-packs/
 /artifacts/manual-outreach-packs/
+/artifacts/prioritization/
 
 # Supabase CLI local state (never commit — local-only, may include local keys)
 /supabase/.branches/

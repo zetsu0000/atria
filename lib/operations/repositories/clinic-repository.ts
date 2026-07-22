@@ -18,6 +18,9 @@ export interface ClinicRepository {
 
   getClinic(clinicId: string): Promise<RepoResult<ClinicRecord>>;
 
+  /** Most recently created clinics first, up to `limit`. Read-only listing used by the prospect prioritization layer. */
+  listClinics(limit: number): Promise<RepoResult<ClinicRecord[]>>;
+
   findClinicByDedupeKey(
     dedupeKey: string,
   ): Promise<RepoResult<ClinicRecord | null>>;

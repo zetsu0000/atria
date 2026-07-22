@@ -408,6 +408,7 @@ describe("provider error handling", () => {
       markCandidateRejected: inner.markCandidateRejected.bind(inner),
       markCandidatePromoted: inner.markCandidatePromoted.bind(inner),
       getCandidate: inner.getCandidate.bind(inner),
+      listCandidates: inner.listCandidates.bind(inner),
       findCandidateByDedupeKey: inner.findCandidateByDedupeKey.bind(inner),
       candidates: inner.candidates,
       jobs: inner.jobs,
