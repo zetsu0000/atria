@@ -1,5 +1,5 @@
 /**
- * Wires the six repositories for the controlled pipeline: in-memory fakes
+ * Wires the seven repositories for the controlled pipeline: in-memory fakes
  * for --dry-run (never touches Supabase, never reads SUPABASE_* env beyond
  * what's already resolved), or real Supabase adapters gated by
  * lib/operations/pipeline/target-guard.ts for --target local/staging.
@@ -10,6 +10,7 @@ import {
   FakeCrawlRepository,
   FakeDiscoveryRepository,
   FakeExtractionRepository,
+  FakeHumanReviewRepository,
   FakeOutreachRepository,
   FakeScoreRepository,
 } from "@/lib/operations/repositories/fakes";
@@ -19,12 +20,14 @@ import { createSupabaseCrawlRepository } from "@/lib/operations/supabase/crawl-r
 import { createSupabaseExtractionRepository } from "@/lib/operations/supabase/extraction-repository.supabase";
 import { createSupabaseScoreRepository } from "@/lib/operations/supabase/score-repository.supabase";
 import { createSupabaseOutreachRepository } from "@/lib/operations/supabase/outreach-repository.supabase";
+import { createSupabaseHumanReviewRepository } from "@/lib/operations/supabase/human-review-repository.supabase";
 import type { DiscoveryRepository } from "@/lib/operations/repositories/discovery-repository";
 import type { ClinicRepository } from "@/lib/operations/repositories/clinic-repository";
 import type { CrawlRepository } from "@/lib/operations/repositories/crawl-repository";
 import type { ExtractionRepository } from "@/lib/operations/repositories/extraction-repository";
 import type { ScoreRepository } from "@/lib/operations/repositories/score-repository";
 import type { OutreachRepository } from "@/lib/operations/repositories/outreach-repository";
+import type { HumanReviewRepository } from "@/lib/operations/repositories/human-review-repository";
 import { assertSafeTarget, type PipelineTarget } from "./target-guard";
 
 export type SelectRepositoriesOptions = {
@@ -41,6 +44,7 @@ export type SelectedRepositories = {
   extractionRepo: ExtractionRepository;
   scoreRepo: ScoreRepository;
   outreachRepo: OutreachRepository;
+  humanReviewRepo: HumanReviewRepository;
   usedFakes: boolean;
 };
 
@@ -57,6 +61,7 @@ export function selectRepositories(options: SelectRepositoriesOptions): SelectRe
         extractionRepo: new FakeExtractionRepository(),
         scoreRepo: new FakeScoreRepository(),
         outreachRepo: new FakeOutreachRepository(),
+        humanReviewRepo: new FakeHumanReviewRepository(),
         usedFakes: true,
       },
     };
@@ -80,6 +85,7 @@ export function selectRepositories(options: SelectRepositoriesOptions): SelectRe
       extractionRepo: createSupabaseExtractionRepository(options.env),
       scoreRepo: createSupabaseScoreRepository(options.env),
       outreachRepo: createSupabaseOutreachRepository(options.env),
+      humanReviewRepo: createSupabaseHumanReviewRepository(options.env),
       usedFakes: false,
     },
   };

@@ -138,5 +138,26 @@ export function createSupabaseScoreRepository(
         return UNAVAILABLE_ERROR;
       }
     },
+
+    async listRecent(limit: number): Promise<RepoResult<ScoreRecord[]>> {
+      const client = getOperationsServiceClient(env);
+      if (!client) return CONFIGURATION_ERROR;
+      try {
+        const { data, error } = await client
+          .from("scores")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(limit)
+          .returns<DbScore[]>();
+        if (error || !data) {
+          console.warn("[atria:operations] score_list_recent_failed");
+          return UNAVAILABLE_ERROR;
+        }
+        return { ok: true, value: data.map(mapScoreRow) };
+      } catch {
+        console.warn("[atria:operations] score_list_recent_exception");
+        return UNAVAILABLE_ERROR;
+      }
+    },
   };
 }

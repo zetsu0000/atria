@@ -11,4 +11,12 @@ export interface ScoreRepository {
   getLatestForClinic(clinicId: string): Promise<RepoResult<ScoreRecord | null>>;
 
   getForCrawlJob(crawlJobId: string): Promise<RepoResult<ScoreRecord | null>>;
+
+  /**
+   * Most recent scores, newest first, capped at `limit` — the pool of
+   * "review-ready" clinics (a scored clinic is one a review pack can be
+   * built for). Used only to discover candidates for the human review
+   * queue; not a general-purpose listing API.
+   */
+  listRecent(limit: number): Promise<RepoResult<ScoreRecord[]>>;
 }

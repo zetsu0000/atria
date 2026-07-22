@@ -424,3 +424,39 @@ export type CreateOutreachMessageInput = {
   /** Caller-supplied clinic do_not_contact flag; persisted as do_not_contact_blocked. */
   doNotContact: boolean;
 };
+
+// ---------------------------------------------------------------------------
+// human_review_decisions
+// ---------------------------------------------------------------------------
+
+/**
+ * No "pending" value here — pending is the *absence* of a decision row for
+ * a clinic, never a stored value. Only an explicit human action produces
+ * one of these three.
+ */
+export type HumanReviewDecision = "approved" | "rejected" | "needs_changes";
+
+export type HumanReviewDecisionRecord = {
+  id: string;
+  clinicId: string;
+  crawlJobId: string | null;
+  scoreId: string | null;
+  outreachMessageId: string | null;
+  decision: HumanReviewDecision;
+  reviewerNotes: string | null;
+  reviewer: string | null;
+  reviewedAt: string;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+};
+
+export type CreateHumanReviewDecisionInput = {
+  clinicId: string;
+  crawlJobId?: string | null;
+  scoreId?: string | null;
+  outreachMessageId?: string | null;
+  decision: HumanReviewDecision;
+  reviewerNotes?: string | null;
+  reviewer?: string | null;
+  metadata?: Record<string, unknown>;
+};

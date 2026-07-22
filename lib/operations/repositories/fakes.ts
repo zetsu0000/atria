@@ -15,6 +15,7 @@ import type { CrawlRepository } from "./crawl-repository";
 import type { ExtractionRepository } from "./extraction-repository";
 import type { ScoreRepository } from "./score-repository";
 import type { OutreachRepository } from "./outreach-repository";
+import type { HumanReviewRepository } from "./human-review-repository";
 import { safeErrorMessage } from "@/lib/crawler/errors";
 import type {
   ClinicContactRecord,
@@ -27,11 +28,13 @@ import type {
   CreateCrawlJobInput,
   CreateDiscoveryJobInput,
   CreateExtractedContentInput,
+  CreateHumanReviewDecisionInput,
   CreateOutreachMessageInput,
   CreateScanAssetInput,
   CreateScoreInput,
   DiscoveryJobRecord,
   ExtractedContentRecord,
+  HumanReviewDecisionRecord,
   OutreachMessageRecord,
   ProspectCandidateRecord,
   RecordCandidateInput,
@@ -479,6 +482,12 @@ export class FakeScoreRepository implements ScoreRepository {
     const found = this.records.find((r) => r.crawlJobId === crawlJobId) ?? null;
     return { ok: true as const, value: found };
   }
+
+  async listRecent(limit: number) {
+    // Most-recently-inserted first, matching getLatestForClinic's own
+    // insertion-order semantics rather than a timestamp sort.
+    return { ok: true as const, value: [...this.records].reverse().slice(0, limit) };
+  }
 }
 
 export class FakeOutreachRepository implements OutreachRepository {
@@ -579,6 +588,40 @@ export class FakeOutreachRepository implements OutreachRepository {
 
   async listForClinic(clinicId: string) {
     const out = [...this.messages.values()].filter((m) => m.clinicId === clinicId);
+    return { ok: true as const, value: out };
+  }
+}
+
+export class FakeHumanReviewRepository implements HumanReviewRepository {
+  decisions: HumanReviewDecisionRecord[] = [];
+
+  async recordDecision(input: CreateHumanReviewDecisionInput) {
+    const now = nowIso();
+    const record: HumanReviewDecisionRecord = {
+      id: randomUUID(),
+      clinicId: input.clinicId,
+      crawlJobId: input.crawlJobId ?? null,
+      scoreId: input.scoreId ?? null,
+      outreachMessageId: input.outreachMessageId ?? null,
+      decision: input.decision,
+      reviewerNotes: input.reviewerNotes ?? null,
+      reviewer: input.reviewer ?? null,
+      reviewedAt: now,
+      metadata: input.metadata ?? {},
+      createdAt: now,
+    };
+    this.decisions.push(record);
+    return { ok: true as const, value: record };
+  }
+
+  async getLatestDecisionForClinic(clinicId: string) {
+    const list = this.decisions.filter((d) => d.clinicId === clinicId);
+    if (!list.length) return { ok: true as const, value: null };
+    return { ok: true as const, value: list[list.length - 1]! };
+  }
+
+  async listDecisionsForClinic(clinicId: string) {
+    const out = this.decisions.filter((d) => d.clinicId === clinicId);
     return { ok: true as const, value: out };
   }
 }

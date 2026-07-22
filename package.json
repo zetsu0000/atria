@@ -19,7 +19,9 @@
     "crawler:discover:places": "tsx scripts/crawler/discover-google-places.ts",
     "crawler:promote": "tsx scripts/crawler/promote-candidate.ts",
     "crawler:update-website": "tsx scripts/crawler/update-clinic-website.ts",
-    "crawler:review-pack": "tsx scripts/crawler/generate-human-review-pack.ts"
+    "crawler:review-pack": "tsx scripts/crawler/generate-human-review-pack.ts",
+    "crawler:review-queue": "tsx scripts/crawler/review-queue.ts",
+    "crawler:review-decision": "tsx scripts/crawler/review-decision.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.7",
