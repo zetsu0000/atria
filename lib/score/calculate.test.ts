@@ -50,6 +50,62 @@ const RICH_INPUT: ScoreInput = {
   requestedUrl: "https://www.example-clinic.com.br/",
 };
 
+/**
+ * Calibration fixtures modeled on real, retained staging outcomes
+ * (docs/technical/crawler-score-calibration-v1.md), using only fixture
+ * names — never a real clinic name inside scoring logic or these fixture
+ * definitions themselves.
+ */
+const STRONG_CLINIC_FIXTURE: ScoreInput = RICH_INPUT;
+
+const CANONICALIZED_CLINIC_FIXTURE: ScoreInput = {
+  candidates: [
+    candidate({ kind: "title", value: "Clínica Canonicalizada" }),
+    candidate({ kind: "heading", value: "Serviços" }),
+    candidate({ kind: "service_candidate", value: "Dermatologia" }),
+    candidate({ kind: "meta_description", value: "Clínica de dermatologia." }),
+    candidate({ kind: "visible_text", value: "Texto institucional." }),
+    candidate({ kind: "phone", value: "(41) 90000-0000" }),
+    candidate({ kind: "email", value: "contato@canonicalizada.com.br" }),
+  ],
+  pageCount: 1,
+  hasDesktopScreenshotMeta: false,
+  hasMobileScreenshotMeta: false,
+  requestedUrl: "https://canonicalizada.com.br/",
+};
+
+const ROBOTS_DENIED_FIXTURE: ScoreInput = {
+  candidates: [],
+  pageCount: 0,
+  unreachableReason: "robots_denied",
+  requestedUrl: "https://blocked-by-robots.example.com.br/",
+};
+
+const CONNECTION_FAILURE_FIXTURE: ScoreInput = {
+  candidates: [],
+  pageCount: 0,
+  unreachableReason: "unreachable_generic",
+  requestedUrl: "https://connection-failure.example.com.br/",
+};
+
+const NO_WEBSITE_FIXTURE: ScoreInput = {
+  candidates: [],
+  pageCount: 0,
+  unreachableReason: "no_website",
+  requestedUrl: null,
+};
+
+const DIRECTORY_LISTING_FIXTURE: ScoreInput = {
+  // Deliberately as rich as RICH_CANDIDATES — proves the directory-listing
+  // gate wins regardless of how much content the directory page itself shows.
+  candidates: RICH_CANDIDATES,
+  pageCount: 3,
+  hasDesktopScreenshotMeta: true,
+  hasMobileScreenshotMeta: true,
+  requestedUrl: "https://www.directory-listing.example.com.br/some-doctor",
+  isDirectoryListing: true,
+};
+
 describe("calculateScoreV1: version and shape", () => {
   it("1. includes version 'v1'", () => {
     const result = calculateScoreV1(RICH_INPUT);
@@ -209,6 +265,147 @@ describe("scoreV1ToDigitalScore + calculatePlaceholderScore: backward-compatible
     assert.equal(digitalScoreSchema.safeParse(score).success, true);
     assert.equal(/qualidade médica/i.test(score.disclaimer), true);
     assert.equal(/pacientes|receita|conversão real/i.test(JSON.stringify(score)), false);
+  });
+});
+
+describe("calculateScoreV1: calibration (docs/technical/crawler-score-calibration-v1.md)", () => {
+  it("1. a strong clinic (real contacts + both screenshots + rich content) scores high", () => {
+    const result = calculateScoreV1(STRONG_CLINIC_FIXTURE);
+    assert.ok(result.totalScore >= 80, `expected a high score, got ${result.totalScore}`);
+  });
+
+  it("2. a crawlable site without screenshots scores lower than the same site with screenshots", () => {
+    const withScreenshots = calculateScoreV1(STRONG_CLINIC_FIXTURE);
+    const withoutScreenshots = calculateScoreV1({
+      ...STRONG_CLINIC_FIXTURE,
+      hasDesktopScreenshotMeta: false,
+      hasMobileScreenshotMeta: false,
+    });
+    assert.ok(withoutScreenshots.totalScore < withScreenshots.totalScore);
+    // Still a real, reasonable score — no screenshots doesn't mean "broken".
+    assert.ok(withoutScreenshots.totalScore > 0);
+  });
+
+  it("3. no contacts (phone/WhatsApp/e-mail) lowers the Conversão/Contato e ação dimension specifically", () => {
+    const withContacts = calculateScoreV1(CANONICALIZED_CLINIC_FIXTURE);
+    const withoutContacts = calculateScoreV1({
+      ...CANONICALIZED_CLINIC_FIXTURE,
+      candidates: CANONICALIZED_CLINIC_FIXTURE.candidates.filter((c) => c.kind !== "phone" && c.kind !== "email"),
+    });
+    const actionWith = withContacts.dimensions.find((d) => d.key === "actionability")!.score;
+    const actionWithout = withoutContacts.dimensions.find((d) => d.key === "actionability")!.score;
+    assert.ok(actionWithout < actionWith);
+  });
+
+  it("4. robots_denied produces a fully blocked (0/100) score, with evidence that clearly names robots.txt — never a generic reason", () => {
+    const result = calculateScoreV1(ROBOTS_DENIED_FIXTURE);
+    assert.equal(result.totalScore, 0);
+    for (const dim of result.dimensions) {
+      assert.equal(dim.score, 0);
+      assert.match(dim.rationale, /robots\.txt/i);
+    }
+    assert.ok(result.warnings.some((w) => /robots\.txt/i.test(w)));
+  });
+
+  it("5. a generic connection/TLS/DNS failure produces a clear credibility penalty, with evidence distinguishable from robots_denied", () => {
+    const result = calculateScoreV1(CONNECTION_FAILURE_FIXTURE);
+    const credibility = result.dimensions.find((d) => d.key === "credibility")!;
+    assert.equal(credibility.score, 0);
+    assert.match(credibility.rationale, /(conexão|certificado|tls|dns|timeout)/i);
+    assert.doesNotMatch(credibility.rationale, /robots\.txt/i);
+  });
+
+  it("6. missing pages (no website at all) never produces a fake positive score, and the reason names the missing website specifically", () => {
+    const result = calculateScoreV1(NO_WEBSITE_FIXTURE);
+    assert.equal(result.totalScore, 0);
+    for (const dim of result.dimensions) assert.equal(dim.score, 0);
+    const credibility = result.dimensions.find((d) => d.key === "credibility")!;
+    assert.match(credibility.rationale, /nenhum site próprio/i);
+    assert.ok(result.warnings.some((w) => /nenhum site próprio/i.test(w)));
+  });
+
+  it("7. a directory listing (wrong audience) is fully blocked (0/100), even with otherwise-rich content", () => {
+    const result = calculateScoreV1(DIRECTORY_LISTING_FIXTURE);
+    assert.equal(result.totalScore, 0);
+    for (const dim of result.dimensions) {
+      assert.equal(dim.score, 0);
+      assert.match(dim.rationale, /diretório de terceiros/i);
+    }
+    assert.ok(result.warnings.some((w) => /diretório de terceiros/i.test(w)));
+  });
+
+  it("8. WhatsApp/contact evidence measurably improves the Conversão/Contato e ação dimension (see also test 3 above)", () => {
+    const withoutContact = calculateScoreV1({ candidates: [candidate({ kind: "title", value: "X" })], pageCount: 1 });
+    const withContact = calculateScoreV1({
+      candidates: [candidate({ kind: "title", value: "X" }), candidate({ kind: "whatsapp", value: "https://wa.me/5511900000000" })],
+      pageCount: 1,
+    });
+    const a1 = withoutContact.dimensions.find((d) => d.key === "actionability")!.score;
+    const a2 = withContact.dimensions.find((d) => d.key === "actionability")!.score;
+    assert.ok(a2 > a1);
+  });
+
+  it("9. screenshot evidence improves both Mobile (mobile screenshot) and Credibilidade (desktop screenshot) where appropriate", () => {
+    const base = calculateScoreV1({ ...CANONICALIZED_CLINIC_FIXTURE, hasDesktopScreenshotMeta: false, hasMobileScreenshotMeta: false });
+    const withMobile = calculateScoreV1({ ...CANONICALIZED_CLINIC_FIXTURE, hasDesktopScreenshotMeta: false, hasMobileScreenshotMeta: true });
+    const withDesktop = calculateScoreV1({ ...CANONICALIZED_CLINIC_FIXTURE, hasDesktopScreenshotMeta: true, hasMobileScreenshotMeta: false });
+
+    const mobileBase = base.dimensions.find((d) => d.key === "mobile")!.score;
+    const mobileWith = withMobile.dimensions.find((d) => d.key === "mobile")!.score;
+    assert.ok(mobileWith > mobileBase, "a captured mobile screenshot must raise the Mobile dimension");
+
+    const credBase = base.dimensions.find((d) => d.key === "credibility")!.score;
+    const credWith = withDesktop.dimensions.find((d) => d.key === "credibility")!.score;
+    assert.ok(credWith > credBase, "a captured desktop screenshot must raise the Credibilidade dimension");
+  });
+
+  it("10. the disclaimer is present verbatim in every fixture, regardless of tier", () => {
+    for (const fixture of [STRONG_CLINIC_FIXTURE, ROBOTS_DENIED_FIXTURE, CONNECTION_FAILURE_FIXTURE, NO_WEBSITE_FIXTURE, DIRECTORY_LISTING_FIXTURE]) {
+      assert.equal(calculateScoreV1(fixture).disclaimer, SCORE_DISCLAIMER);
+    }
+  });
+
+  it("11. no medical-quality evaluation language appears in any fixture's output", () => {
+    for (const fixture of [STRONG_CLINIC_FIXTURE, ROBOTS_DENIED_FIXTURE, DIRECTORY_LISTING_FIXTURE]) {
+      const serialized = JSON.stringify(calculateScoreV1(fixture)).toLowerCase();
+      for (const forbidden of ["qualidade médica boa", "qualidade médica ruim", "diagnosticamos", "melhor clínica", "cura garantida"]) {
+        assert.doesNotMatch(serialized, new RegExp(forbidden));
+      }
+    }
+  });
+
+  it("12. output is fully deterministic across every calibration fixture", () => {
+    for (const fixture of [STRONG_CLINIC_FIXTURE, CANONICALIZED_CLINIC_FIXTURE, ROBOTS_DENIED_FIXTURE, DIRECTORY_LISTING_FIXTURE]) {
+      const a = calculateScoreV1(fixture);
+      const b = calculateScoreV1(fixture);
+      assert.deepEqual(a, b);
+    }
+  });
+
+  it("13. every dimension has at least one evidence entry tagged with its own dimension key", () => {
+    const result = calculateScoreV1(STRONG_CLINIC_FIXTURE);
+    for (const dim of result.dimensions) {
+      assert.ok(
+        result.evidence.some((e) => e.dimension === dim.key),
+        `expected at least one evidence entry for ${dim.key}`,
+      );
+    }
+  });
+
+  it("14. total score always stays within 0-100 across every calibration fixture", () => {
+    for (const fixture of [STRONG_CLINIC_FIXTURE, CANONICALIZED_CLINIC_FIXTURE, ROBOTS_DENIED_FIXTURE, CONNECTION_FAILURE_FIXTURE, NO_WEBSITE_FIXTURE, DIRECTORY_LISTING_FIXTURE]) {
+      const result = calculateScoreV1(fixture);
+      assert.ok(result.totalScore >= 0 && result.totalScore <= 100, `${result.totalScore} out of range`);
+    }
+  });
+
+  it("15. every dimension always stays within 0-20 across every calibration fixture", () => {
+    for (const fixture of [STRONG_CLINIC_FIXTURE, CANONICALIZED_CLINIC_FIXTURE, ROBOTS_DENIED_FIXTURE, CONNECTION_FAILURE_FIXTURE, NO_WEBSITE_FIXTURE, DIRECTORY_LISTING_FIXTURE]) {
+      const result = calculateScoreV1(fixture);
+      for (const dim of result.dimensions) {
+        assert.ok(dim.score >= 0 && dim.score <= 20, `${dim.key}=${dim.score} out of range`);
+      }
+    }
   });
 });
 

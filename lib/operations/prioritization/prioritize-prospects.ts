@@ -71,7 +71,14 @@ function hostnameOf(originOrUrl: string | null): string | null {
   }
 }
 
-function isDirectoryListing(normalizedWebsiteOrigin: string | null): boolean {
+/**
+ * Exported so other read-only modules (e.g.
+ * scripts/crawler/recalculate-score.ts, which needs this exact same
+ * signal to pass `isDirectoryListing` into the score calibration —
+ * lib/score/calculate.ts) can reuse the identical detector rather than
+ * duplicating the domain list in a second place.
+ */
+export function isDirectoryListing(normalizedWebsiteOrigin: string | null): boolean {
   const host = hostnameOf(normalizedWebsiteOrigin);
   if (!host) return false;
   return KNOWN_DIRECTORY_LISTING_ORIGINS.some((known) => host === known || host.endsWith(`.${known}`));

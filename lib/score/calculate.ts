@@ -70,6 +70,28 @@ export const SCORE_DIMENSION_LABELS_PT: Record<ScoreDimensionKey, string> = {
   freshness: "Atualização",
 };
 
+/**
+ * Why a site is unreachable (`pageCount === 0`) — calibrated in v1 to
+ * distinguish *why* no evidence exists, since the three real-world causes
+ * warrant genuinely different explanations for a human reader, even
+ * though all three still score 0 in every dimension (there is, in every
+ * case, zero real evidence to award points for):
+ *  - `"no_website"`: the clinic has no website URL recorded at all —
+ *    there was never anything to crawl.
+ *  - `"robots_denied"`: the site itself explicitly disallowed crawling
+ *    via robots.txt — respected, never bypassed.
+ *  - `"unreachable_generic"` (the default when unspecified): any other
+ *    reason a real crawl attempt still produced zero pages — connection
+ *    failure, DNS failure, timeout, TLS/certificate error, or an
+ *    unexpected error. There is currently no dedicated `CrawlErrorCode`
+ *    that distinguishes a TLS/certificate failure from other low-level
+ *    connection failures (see docs/technical/crawler-job-error-reason-fix.md's
+ *    own documented limitation), so this bucket intentionally covers all
+ *    of them with one honest, connection-oriented explanation rather
+ *    than guessing a more specific cause that isn't actually known.
+ */
+export type UnreachableReasonCode = "no_website" | "robots_denied" | "unreachable_generic";
+
 export type ScoreInput = {
   candidates: ExtractionCandidate[];
   /** Pages successfully fetched. 0 means the crawl could not reach any public page (e.g. TLS failure, DNS failure, timeout) — every dimension reflects this. */
@@ -87,6 +109,25 @@ export type ScoreInput = {
    * behavior for callers that don't have this context.
    */
   requestedUrl?: string | null;
+  /**
+   * Only consulted when `pageCount === 0` — picks which explanation
+   * `unreachableResult` uses. Defaults to `"unreachable_generic"` when
+   * omitted, matching every existing caller's behavior unchanged.
+   */
+  unreachableReason?: UnreachableReasonCode | null;
+  /**
+   * True when this site is a known third-party directory/aggregator
+   * listing (e.g. Doctoralia), not the clinic's own domain — the same
+   * signal `lib/operations/prioritization/prioritize-prospects.ts`
+   * already computes. When true, every dimension scores 0 with a clear
+   * reason: a directory listing isn't a website the clinic could
+   * commission Atria to modernize, so there is no real digital
+   * presentation to evaluate, regardless of how much content the
+   * directory page itself happens to show. Ignored when the site is
+   * also unreachable (`pageCount === 0` takes priority — there's no way
+   * to have confirmed it's a directory listing without reaching it).
+   */
+  isDirectoryListing?: boolean;
 };
 
 export type ScoreDimensionResult = {
@@ -115,16 +156,26 @@ function clamp(value: number, min: number, max: number): number {
 
 type DimensionCalcResult = { score: number; evidence: ScoreEvidence[]; rationale: string };
 
+const UNREACHABLE_REASON_TEXT: Record<UnreachableReasonCode, (label: string) => string> = {
+  no_website: (label) =>
+    `Nenhum site próprio cadastrado para esta clínica — não há evidência para avaliar ${label}.`,
+  robots_denied: (label) =>
+    `O site bloqueou o acesso via robots.txt (respeitado, sem bypass) — não há evidência para avaliar ${label}.`,
+  unreachable_generic: (label) =>
+    `Site inacessível durante o scan (possível falha de conexão, DNS, certificado/TLS ou timeout) — não há evidência real para avaliar ${label}.`,
+};
+
 /**
  * Shared "site unreachable" outcome for a single dimension — used when
- * `pageCount === 0` (the crawl could not fetch any public page, e.g. an
- * expired TLS certificate, DNS failure, or timeout). Every dimension
- * reports 0 with one clear, honest evidence entry, rather than silently
- * omitting the dimension or defaulting to an unearned baseline.
+ * `pageCount === 0` (the crawl could not fetch any public page). Every
+ * dimension reports 0 with one clear, honest evidence entry tied to the
+ * specific reason (`UnreachableReasonCode`), rather than silently
+ * omitting the dimension, defaulting to an unearned baseline, or using
+ * one generic explanation for every distinct cause.
  */
-function unreachableResult(dimensionKey: ScoreDimensionKey): DimensionCalcResult {
+function unreachableResult(dimensionKey: ScoreDimensionKey, reasonCode: UnreachableReasonCode): DimensionCalcResult {
   const label = SCORE_DIMENSION_LABELS_PT[dimensionKey].toLowerCase();
-  const reason = `Site inacessível durante o scan (0 páginas públicas obtidas) — não há evidência real para avaliar ${label}.`;
+  const reason = UNREACHABLE_REASON_TEXT[reasonCode](label);
   return {
     score: 0,
     evidence: [{ dimension: dimensionKey, points: 0, reason }],
@@ -132,20 +183,49 @@ function unreachableResult(dimensionKey: ScoreDimensionKey): DimensionCalcResult
   };
 }
 
-function scoreCredibility(input: ScoreInput, kinds: Set<string>, reachable: boolean): DimensionCalcResult {
-  if (!reachable) return unreachableResult("credibility");
+/**
+ * Shared "directory listing" outcome for a single dimension — used when
+ * `isDirectoryListing` is true (and the site is otherwise reachable). A
+ * third-party directory/aggregator page is not a website the clinic
+ * could commission Atria to modernize, so every dimension scores 0 with
+ * one clear, explicit reason — never silently treated the same as a
+ * real, own-domain site regardless of how much content the directory
+ * page happens to show.
+ */
+function directoryListingResult(dimensionKey: ScoreDimensionKey): DimensionCalcResult {
+  const label = SCORE_DIMENSION_LABELS_PT[dimensionKey].toLowerCase();
+  const reason = `Este site é uma listagem de diretório de terceiros, não o domínio próprio da clínica — sem site próprio para avaliar ${label}.`;
+  return {
+    score: 0,
+    evidence: [{ dimension: dimensionKey, points: 0, reason }],
+    rationale: reason,
+  };
+}
+
+function scoreCredibility(
+  input: ScoreInput,
+  kinds: Set<string>,
+  reachable: boolean,
+  unreachableReasonCode: UnreachableReasonCode,
+): DimensionCalcResult {
+  if (!reachable) return unreachableResult("credibility", unreachableReasonCode);
+  if (input.isDirectoryListing) return directoryListingResult("credibility");
 
   let score = 0;
   const evidence: ScoreEvidence[] = [];
   const rationaleParts: string[] = [];
 
-  score += 6;
+  // Calibration v1: lowered from the original +6 — "at least one page
+  // loaded" is a weak, easy-to-satisfy signal on its own; the points
+  // freed up here fund the new desktop-screenshot criterion below,
+  // which is stronger, harder-to-fake visual evidence.
+  score += 4;
   evidence.push({
     dimension: "credibility",
-    points: 6,
+    points: 4,
     reason: "Site acessível — pelo menos uma página pública foi carregada com sucesso durante o scan.",
   });
-  rationaleParts.push("site acessível (+6)");
+  rationaleParts.push("site acessível (+4)");
 
   const isHttps = typeof input.requestedUrl === "string" && input.requestedUrl.trim().toLowerCase().startsWith("https:");
   if (isHttps) {
@@ -185,24 +265,55 @@ function scoreCredibility(input: ScoreInput, kinds: Set<string>, reachable: bool
     rationaleParts.push("contato/endereço não encontrado (+0)");
   }
 
+  // Calibration v1: lowered from the original +3 to +2, funding the new
+  // desktop-screenshot criterion below.
   if (kinds.has("team_name_candidate") || kinds.has("service_candidate")) {
+    score += 2;
+    evidence.push({
+      dimension: "credibility",
+      points: 2,
+      reason: "Sinais de conteúdo institucional (equipe ou serviços) encontrados.",
+    });
+    rationaleParts.push("conteúdo institucional presente (+2)");
+  } else {
+    rationaleParts.push("sinais de conteúdo institucional não encontrados (+0)");
+  }
+
+  // Calibration v1 (new): a real, captured desktop screenshot is direct
+  // visual proof the site exists and renders — stronger evidence than
+  // "at least one page loaded" alone, so it's rewarded with real points
+  // here (previously only a 0-point reference in Clareza).
+  if (input.hasDesktopScreenshotMeta) {
     score += 3;
     evidence.push({
       dimension: "credibility",
       points: 3,
-      reason: "Sinais de conteúdo institucional (equipe ou serviços) encontrados.",
+      reason: input.desktopScreenshotAssetId
+        ? `Screenshot desktop capturado com sucesso (asset ${input.desktopScreenshotAssetId}; avaliação visual detalhada pendente de revisão humana).`
+        : "Screenshot desktop capturado com sucesso (avaliação visual detalhada pendente de revisão humana).",
     });
-    rationaleParts.push("conteúdo institucional presente (+3)");
+    rationaleParts.push("screenshot desktop capturado (+3)");
   } else {
-    rationaleParts.push("sinais de conteúdo institucional não encontrados (+0)");
+    evidence.push({
+      dimension: "credibility",
+      points: 0,
+      reason: "Nenhum screenshot desktop disponível — evidência visual adicional ausente.",
+    });
+    rationaleParts.push("sem screenshot desktop disponível (+0)");
   }
 
   score = clamp(score, 0, SCORE_DIMENSION_MAX);
   return { score, evidence, rationale: `Credibilidade: ${rationaleParts.join(", ")}.` };
 }
 
-function scoreClarity(input: ScoreInput, kinds: Set<string>, reachable: boolean): DimensionCalcResult {
-  if (!reachable) return unreachableResult("clarity");
+function scoreClarity(
+  input: ScoreInput,
+  kinds: Set<string>,
+  reachable: boolean,
+  unreachableReasonCode: UnreachableReasonCode,
+): DimensionCalcResult {
+  if (!reachable) return unreachableResult("clarity", unreachableReasonCode);
+  if (input.isDirectoryListing) return directoryListingResult("clarity");
 
   let score = 0;
   const evidence: ScoreEvidence[] = [];
@@ -250,24 +361,18 @@ function scoreClarity(input: ScoreInput, kinds: Set<string>, reachable: boolean)
     rationaleParts.push("navegação interna presente (+2)");
   }
 
-  if (input.hasDesktopScreenshotMeta) {
-    // 0-point evidence entry purely so score/report consumers can see the
-    // desktop asset reference — visual review is still a human's job.
-    evidence.push({
-      dimension: "clarity",
-      points: 0,
-      reason: input.desktopScreenshotAssetId
-        ? `Metadado de screenshot desktop registrado (asset ${input.desktopScreenshotAssetId}; avaliação visual pendente de revisão humana).`
-        : "Metadado de screenshot desktop registrado (avaliação visual pendente de revisão humana).",
-    });
-  }
-
   score = clamp(score, 0, SCORE_DIMENSION_MAX);
   return { score, evidence, rationale: `Clareza: ${rationaleParts.join(", ")}.` };
 }
 
-function scoreMobile(input: ScoreInput, kinds: Set<string>, reachable: boolean): DimensionCalcResult {
-  if (!reachable) return unreachableResult("mobile");
+function scoreMobile(
+  input: ScoreInput,
+  kinds: Set<string>,
+  reachable: boolean,
+  unreachableReasonCode: UnreachableReasonCode,
+): DimensionCalcResult {
+  if (!reachable) return unreachableResult("mobile", unreachableReasonCode);
+  if (input.isDirectoryListing) return directoryListingResult("mobile");
 
   let score = 0;
   const evidence: ScoreEvidence[] = [];
@@ -314,8 +419,14 @@ function scoreMobile(input: ScoreInput, kinds: Set<string>, reachable: boolean):
   return { score, evidence, rationale: `Mobile: ${rationaleParts.join(", ")}.` };
 }
 
-function scoreActionability(input: ScoreInput, kinds: Set<string>, reachable: boolean): DimensionCalcResult {
-  if (!reachable) return unreachableResult("actionability");
+function scoreActionability(
+  input: ScoreInput,
+  kinds: Set<string>,
+  reachable: boolean,
+  unreachableReasonCode: UnreachableReasonCode,
+): DimensionCalcResult {
+  if (!reachable) return unreachableResult("actionability", unreachableReasonCode);
+  if (input.isDirectoryListing) return directoryListingResult("actionability");
 
   let score = 0;
   const evidence: ScoreEvidence[] = [];
@@ -357,8 +468,14 @@ function scoreActionability(input: ScoreInput, kinds: Set<string>, reachable: bo
   return { score, evidence, rationale: `Conversão/Contato e ação: ${rationaleParts.join(", ")}.` };
 }
 
-function scoreFreshness(input: ScoreInput, kinds: Set<string>, reachable: boolean): DimensionCalcResult {
-  if (!reachable) return unreachableResult("freshness");
+function scoreFreshness(
+  input: ScoreInput,
+  kinds: Set<string>,
+  reachable: boolean,
+  unreachableReasonCode: UnreachableReasonCode,
+): DimensionCalcResult {
+  if (!reachable) return unreachableResult("freshness", unreachableReasonCode);
+  if (input.isDirectoryListing) return directoryListingResult("freshness");
 
   let score = 4;
   const evidence: ScoreEvidence[] = [
@@ -395,27 +512,46 @@ function scoreFreshness(input: ScoreInput, kinds: Set<string>, reachable: boolea
   return { score, evidence, rationale: `Atualização: ${rationaleParts.join(", ")}.` };
 }
 
+const UNREACHABLE_WARNING_TEXT: Record<UnreachableReasonCode, string> = {
+  no_website: "Nenhum site próprio cadastrado para esta clínica — todas as dimensões refletem a ausência de um site para avaliar.",
+  robots_denied: "O site bloqueou o acesso via robots.txt (respeitado, sem bypass) — todas as dimensões refletem essa limitação.",
+  unreachable_generic:
+    "Site inacessível durante o scan (0 páginas obtidas) — todas as dimensões refletem essa limitação (possível falha de conexão, DNS, certificado/TLS ou timeout).",
+};
+
 /**
  * Score calibration v1 — deterministic, evidence-referenced digital-
  * presentation scoring. Never evaluates medical quality, never invents
  * claims/testimonials/awards (there is no such extraction candidate kind
  * to reference), never estimates patient outcomes, revenue, or
- * conversion. `pageCount === 0` (an unreachable site — e.g. an expired
- * TLS certificate, DNS failure, or timeout) is scored explicitly as 0 in
- * every dimension, with a clear reason, rather than silently omitted.
+ * conversion. `pageCount === 0` (an unreachable site) is scored
+ * explicitly as 0 in every dimension, with a reason tied to the specific
+ * cause (`unreachableReason` — missing website, robots denied, or a
+ * generic connection/TLS/DNS/timeout failure), rather than one generic
+ * explanation for every distinct cause. A known third-party directory
+ * listing (`isDirectoryListing`) is scored explicitly as 0 with its own
+ * clear reason for the same "no real evidence of the clinic's own site"
+ * principle. See docs/technical/crawler-score-calibration-v1.md for the
+ * full calibration rationale.
  */
 export function calculateScoreV1(input: ScoreInput): ScoreV1Result {
   const kinds = new Set(input.candidates.map((c) => c.kind));
   const reachable = input.pageCount > 0;
+  const unreachableReasonCode: UnreachableReasonCode = input.unreachableReason ?? "unreachable_generic";
   const warnings: string[] = [];
 
   if (!reachable) {
+    warnings.push(UNREACHABLE_WARNING_TEXT[unreachableReasonCode]);
+  } else if (input.isDirectoryListing) {
     warnings.push(
-      "Site inacessível durante o scan (0 páginas obtidas) — todas as dimensões refletem essa limitação (possível falha de TLS, DNS, timeout ou bloqueio).",
+      "Este site é uma listagem de diretório de terceiros, não o domínio próprio da clínica — todas as dimensões refletem a ausência de um site próprio para avaliar.",
     );
   } else {
     if (!input.hasMobileScreenshotMeta) {
       warnings.push("Nenhum screenshot mobile disponível — a dimensão Mobile usa uma avaliação conservadora.");
+    }
+    if (!input.hasDesktopScreenshotMeta) {
+      warnings.push("Nenhum screenshot desktop disponível — a dimensão Credibilidade usa uma avaliação conservadora.");
     }
     if (!kinds.has("service_candidate")) {
       warnings.push("Nenhum serviço/especialidade detectado no conteúdo extraído — Clareza pode estar subestimada por falta de evidência, não por avaliação de qualidade.");
@@ -425,11 +561,11 @@ export function calculateScoreV1(input: ScoreInput): ScoreV1Result {
     }
   }
 
-  const credibility = scoreCredibility(input, kinds, reachable);
-  const clarity = scoreClarity(input, kinds, reachable);
-  const mobile = scoreMobile(input, kinds, reachable);
-  const actionability = scoreActionability(input, kinds, reachable);
-  const freshness = scoreFreshness(input, kinds, reachable);
+  const credibility = scoreCredibility(input, kinds, reachable, unreachableReasonCode);
+  const clarity = scoreClarity(input, kinds, reachable, unreachableReasonCode);
+  const mobile = scoreMobile(input, kinds, reachable, unreachableReasonCode);
+  const actionability = scoreActionability(input, kinds, reachable, unreachableReasonCode);
+  const freshness = scoreFreshness(input, kinds, reachable, unreachableReasonCode);
 
   const byKey: Record<ScoreDimensionKey, DimensionCalcResult> = {
     credibility,

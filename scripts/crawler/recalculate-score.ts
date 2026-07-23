@@ -25,7 +25,8 @@ import { readLeadCaptureEnv } from "@/lib/security/env";
 import { loadDotEnvLocalIfPresent } from "@/lib/operations/pipeline/load-dotenv-local";
 import { selectRepositories } from "@/lib/operations/pipeline/select-repositories";
 import type { PipelineTarget } from "@/lib/operations/pipeline/target-guard";
-import { calculatePlaceholderScore } from "@/lib/score/calculate";
+import { calculatePlaceholderScore, type UnreachableReasonCode } from "@/lib/score/calculate";
+import { isDirectoryListing } from "@/lib/operations/prioritization/prioritize-prospects";
 import { getValue, parseArgs } from "./cli-args";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -57,6 +58,7 @@ async function main(): Promise<void> {
     console.error(`[recalculate-score] FAILED (${clinicResult.reason}): ${clinicResult.message}`);
     process.exit(1);
   }
+  const clinic = clinicResult.value;
 
   const crawlJobResult = crawlJobIdArg
     ? await crawlRepo.getCrawlJob(crawlJobIdArg)
@@ -84,6 +86,17 @@ async function main(): Promise<void> {
     return status !== "capture_failed";
   };
 
+  // Calibration v1: when the crawl fetched zero pages, pick the specific
+  // unreachable reason the score should explain — reusing the job's own,
+  // now-specific error_code (see docs/technical/crawler-job-error-reason-fix.md)
+  // rather than one generic explanation for every distinct cause.
+  let unreachableReason: UnreachableReasonCode | undefined;
+  if (crawlJob.pagesFetched === 0) {
+    if (!clinic.websiteUrl) unreachableReason = "no_website";
+    else if (crawlJob.errorCode === "robots_denied") unreachableReason = "robots_denied";
+    else unreachableReason = "unreachable_generic";
+  }
+
   const score = calculatePlaceholderScore({
     candidates,
     pageCount: crawlJob.pagesFetched,
@@ -92,6 +105,8 @@ async function main(): Promise<void> {
     desktopScreenshotAssetId: desktopAsset?.id ?? null,
     mobileScreenshotAssetId: mobileAsset?.id ?? null,
     requestedUrl: crawlJob.requestedUrl,
+    unreachableReason,
+    isDirectoryListing: isDirectoryListing(clinic.normalizedWebsiteOrigin),
   });
 
   const saved = await scoreRepo.saveScore({ crawlJobId: crawlJob.id, clinicId, score });
@@ -119,6 +134,8 @@ async function main(): Promise<void> {
         pagesFetched: crawlJob.pagesFetched,
         hasDesktopScreenshot: isUsableCapture(desktopAsset),
         hasMobileScreenshot: isUsableCapture(mobileAsset),
+        unreachableReason: unreachableReason ?? null,
+        isDirectoryListing: isDirectoryListing(clinic.normalizedWebsiteOrigin),
       },
       null,
       2,
