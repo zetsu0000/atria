@@ -127,6 +127,60 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * One failure observed while running a job — recorded in-memory, in the
+ * exact chronological order it happened, alongside (never instead of) the
+ * existing `crawl_pages`/`crawl_findings` persistence. `isPageLevel` marks
+ * a failure that has its own `crawl_pages.error_code` (fetch/robots/parse
+ * failures on an attempted page) as opposed to a job-level-only failure
+ * that never produced a page row (e.g. `persistence_failed`, a malformed
+ * discovered URL).
+ */
+export type CrawlFailureSignal = {
+  code: CrawlErrorCode;
+  severity: "info" | "low" | "medium" | "high";
+  isPageLevel: boolean;
+};
+
+const FINDING_SEVERITY_RANK: Record<CrawlFailureSignal["severity"], number> = {
+  high: 3,
+  medium: 2,
+  low: 1,
+  info: 0,
+};
+
+/**
+ * Picks the job-level `error_code` for a job that fetched zero pages,
+ * preserving the most specific real reason available instead of
+ * collapsing everything to `unexpected_error`. Pure and deterministic —
+ * given the same ordered list of signals, always returns the same code.
+ *
+ * Priority (see docs/technical/crawler-job-error-reason-fix.md):
+ *  1. The first page-level failure, in the order pages were actually
+ *     attempted — the crawl loop always attempts the seed URL first, so
+ *     when zero pages succeed this is deterministically the seed's own
+ *     failure reason (the most useful one: it is *why the job never got
+ *     off the ground*).
+ *  2. Otherwise, the most severe non-page-level finding (e.g.
+ *     `persistence_failed`) — ties broken by recording order (first
+ *     recorded wins), via a stable sort.
+ *  3. Otherwise, `"unexpected_error"` — only reachable when literally no
+ *     failure was ever recorded, which should not happen in practice for
+ *     a job that fetched zero pages, but is kept as a safe, honest
+ *     fallback rather than throwing.
+ */
+export function selectJobFailureErrorCode(signals: readonly CrawlFailureSignal[]): CrawlErrorCode {
+  const firstPageLevel = signals.find((s) => s.isPageLevel);
+  if (firstPageLevel) return firstPageLevel.code;
+
+  if (signals.length > 0) {
+    const bySeverity = [...signals].sort((a, b) => FINDING_SEVERITY_RANK[b.severity] - FINDING_SEVERITY_RANK[a.severity]);
+    return bySeverity[0]!.code;
+  }
+
+  return "unexpected_error";
+}
+
 const CONTACT_KIND_MAP: Partial<Record<ExtractionCandidate["kind"], ContactType>> = {
   phone: "phone",
   email: "email",
@@ -285,6 +339,7 @@ export async function runCrawlJob(
   let pagesFetched = 0;
   let pagesFailed = 0;
   const candidateBatches: ExtractionCandidate[][] = [];
+  const failureSignals: CrawlFailureSignal[] = [];
 
   async function processOne(url: string): Promise<void> {
     let path = "/";
@@ -292,6 +347,14 @@ export async function runCrawlJob(
       path = new URL(url).pathname || "/";
     } catch {
       pagesFailed += 1;
+      failureSignals.push({ code: "invalid_url", severity: "high", isPageLevel: false });
+      await deps.crawlRepo.recordFinding(job.id, {
+        category: "fetch",
+        severity: "high",
+        code: "invalid_url",
+        summary: safeErrorMessage("invalid_url"),
+        pageUrl: url,
+      });
       return;
     }
 
@@ -314,6 +377,7 @@ export async function runCrawlJob(
         errorCode: "robots_denied",
       });
       pagesFailed += 1;
+      failureSignals.push({ code: "robots_denied", severity: "info", isPageLevel: true });
       await deps.crawlRepo.recordFinding(job.id, {
         category: "robots",
         severity: "info",
@@ -350,6 +414,7 @@ export async function runCrawlJob(
         fetchedAt: new Date().toISOString(),
         errorCode: fetched.code,
       });
+      failureSignals.push({ code: fetched.code, severity: "medium", isPageLevel: true });
       await deps.crawlRepo.recordFinding(job.id, {
         category: "fetch",
         severity: "medium",
@@ -382,6 +447,7 @@ export async function runCrawlJob(
         fetchedAt: new Date().toISOString(),
         errorCode: "parse_failed",
       });
+      failureSignals.push({ code: "parse_failed", severity: "medium", isPageLevel: true });
       await deps.crawlRepo.recordFinding(job.id, {
         category: "parse",
         severity: "medium",
@@ -421,6 +487,7 @@ export async function runCrawlJob(
     const persisted = await recordPage(job.id, deps, pageRecord);
     if (!persisted) {
       pagesFailed += 1;
+      failureSignals.push({ code: "persistence_failed", severity: "high", isPageLevel: false });
       await deps.crawlRepo.recordFinding(job.id, {
         category: "ops",
         severity: "high",
@@ -487,7 +554,7 @@ export async function runCrawlJob(
 
   if (pagesFetched === 0) {
     finalStatus = "failed";
-    errorCode = "unexpected_error";
+    errorCode = selectJobFailureErrorCode(failureSignals);
   } else if (pagesFailed > 0 || hitPageLimit || queue.length > 0) {
     finalStatus = "partial";
     errorCode = hitPageLimit ? "page_limit_reached" : null;

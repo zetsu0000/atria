@@ -258,6 +258,33 @@ describe("processCrawlQueue: http:// -> https:// canonicalization", () => {
     });
   });
 
+  it("9. combined with the job-level error-reason fix: when a canonicalized crawl still ultimately fails, the job's error_code preserves the real reason, and the canonicalization finding remains present and auditable alongside it", async () => {
+    const { deps, clinicRepo, crawlRepo } = buildDeps({
+      httpsPreflightFetchImpl: okHttpsPreflight(),
+      // The starting URL upgrades successfully (preflight passes), but the
+      // actual bounded crawl of the (now https://) URL still fails — e.g.
+      // a timeout on the real content fetch, independent of the preflight.
+      fetchHtmlPage: async () => ({ ok: false, code: "timeout", message: "simulated timeout for test" }),
+    });
+    const clinic = await seedClinic(clinicRepo, "http://www.example.com/", "canon-then-fail-clinic");
+
+    const result = await processCrawlQueue({ clinicIds: [clinic.id], allowRealCrawl: true }, deps);
+    const outcome = result.processed[0]!;
+    assert.equal(outcome.result.ok, true);
+    if (!outcome.result.ok) return;
+    assert.equal(outcome.result.finalStatus, "failed");
+    assert.equal(outcome.result.pagesFetched, 0);
+    // The real failure reason (timeout) is preserved — never collapsed to unexpected_error.
+    assert.equal(crawlRepo.jobs.get(outcome.result.job.id)?.errorCode, "timeout");
+    assert.equal(outcome.result.job.requestedUrl, "https://www.example.com/", "the URL was still canonicalized before the crawl attempt");
+
+    const findings = crawlRepo.findings.get(outcome.result.job.id) ?? [];
+    const canonFinding = findings.find((f) => f.code === "http_to_https_canonicalized");
+    assert.ok(canonFinding, "the canonicalization finding must still be recorded, even though the crawl itself later failed");
+    const fetchFinding = findings.find((f) => f.code === "timeout");
+    assert.ok(fetchFinding, "the real fetch failure must also be recorded as its own finding");
+  });
+
   it("11. screenshot capture behavior is unaffected by canonicalization when screenshots aren't requested", async () => {
     const { deps, clinicRepo } = buildDeps({ httpsPreflightFetchImpl: okHttpsPreflight() });
     const clinic = await seedClinic(clinicRepo, "http://www.example.com/", "no-screenshot-request-clinic");

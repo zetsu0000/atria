@@ -7,9 +7,13 @@ import {
   FakeOutreachRepository,
   FakeScoreRepository,
 } from "./repositories/fakes";
-import { runCrawlJob, type RunCrawlJobDeps } from "./run-crawl-job";
+import { runCrawlJob, selectJobFailureErrorCode, type CrawlFailureSignal, type RunCrawlJobDeps } from "./run-crawl-job";
 import type { FetchPageResult } from "@/lib/crawler/fetch-page";
 import type { RobotsPolicy } from "@/lib/crawler/robots";
+import type { CrawlErrorCode } from "@/lib/crawler/errors";
+import { selectRepositories } from "./pipeline/select-repositories";
+import { KNOWN_PROJECT_REFS } from "./pipeline/target-guard";
+import type { LeadCaptureEnv } from "@/lib/security/env";
 
 /**
  * All tests in this file use fixtures/mocked transports only. `fetchHtmlPage`
@@ -22,6 +26,8 @@ function buildTestDeps(options: {
   pages?: Record<string, string>;
   robotsAllow?: boolean;
   failUrls?: Set<string>;
+  /** Overrides the default "http_error" code for a specific failing URL — lets a test simulate any real CrawlErrorCode (redirect_blocked, timeout, blocked_host, dns_failed, ...) from the injected fetchHtmlPage. */
+  failureCodesByUrl?: Partial<Record<string, CrawlErrorCode>>;
 }): {
   deps: RunCrawlJobDeps;
   crawlRepo: FakeCrawlRepository;
@@ -54,7 +60,8 @@ function buildTestDeps(options: {
 
   const fetchHtmlPage: RunCrawlJobDeps["fetchHtmlPage"] = async ({ url }): Promise<FetchPageResult> => {
     if (options.failUrls?.has(url)) {
-      return { ok: false, code: "http_error", message: "The remote server returned an HTTP error.", statusCode: 500 };
+      const code = options.failureCodesByUrl?.[url] ?? "http_error";
+      return { ok: false, code, message: `simulated ${code} for test`, statusCode: code === "http_error" ? 500 : undefined };
     }
     const body = htmlPages[url];
     if (!body) {
@@ -185,7 +192,7 @@ describe("runCrawlJob (repository-backed orchestrator)", () => {
     assert.equal(crawlRepo.jobs.get(result.job.id)?.status, "partial");
   });
 
-  it("marks the job failed when every page fails (total failure)", async () => {
+  it("marks the job failed when every page fails (total failure), preserving the real error_code (not a generic fallback)", async () => {
     const { deps, crawlRepo, extractionRepo, scoreRepo } = buildTestDeps({
       failUrls: new Set(["https://clinic.example.com/"]),
     });
@@ -201,9 +208,99 @@ describe("runCrawlJob (repository-backed orchestrator)", () => {
     assert.equal(result.extraction, null);
     assert.equal(result.score, null);
     assert.equal(crawlRepo.jobs.get(result.job.id)?.status, "failed");
+    // The seed URL's own real fetch failure (http_error) is now preserved
+    // as the job-level error_code, instead of the old hardcoded
+    // "unexpected_error" fallback.
+    assert.equal(crawlRepo.jobs.get(result.job.id)?.errorCode, "http_error");
+    assert.equal(crawlRepo.jobs.get(result.job.id)?.errorMessage, "The remote server returned an HTTP error.");
     // No extraction/score rows were written when nothing was fetched.
     assert.equal(extractionRepo.byCrawlJob.size, 0);
     assert.equal(scoreRepo.records.length, 0);
+    // Total failure never creates an outreach draft — the code path that
+    // could ever build one is only reached when pagesFetched > 0.
+    assert.equal(result.outreachDraft, null);
+  });
+
+  describe("job-level error_code preserves the real failure reason (not a generic unexpected_error fallback)", () => {
+    const SCENARIOS: Array<{ code: CrawlErrorCode; label: string }> = [
+      { code: "redirect_blocked", label: "redirect_blocked" },
+      { code: "timeout", label: "timeout" },
+      { code: "blocked_host", label: "blocked_host (private/SSRF re-check after the seed-level check already passed)" },
+      { code: "dns_failed", label: "dns_failed" },
+      { code: "unsupported_content_type", label: "unsupported_content_type" },
+      { code: "response_too_large", label: "response_too_large" },
+    ];
+
+    for (const scenario of SCENARIOS) {
+      it(`${scenario.label} becomes the job's error_code when the seed fetch fails that way`, async () => {
+        const { deps, crawlRepo } = buildTestDeps({
+          failUrls: new Set(["https://clinic.example.com/"]),
+          failureCodesByUrl: { "https://clinic.example.com/": scenario.code },
+        });
+
+        const result = await runCrawlJob(
+          { leadId: "lead-1", requestedUrl: "https://clinic.example.com/", maxPages: 2, lookupImpl, delayMs: 0 },
+          deps,
+        );
+        assert.equal(result.ok, true);
+        if (!result.ok) return;
+        assert.equal(result.finalStatus, "failed");
+        assert.equal(result.pagesFetched, 0);
+        assert.equal(crawlRepo.jobs.get(result.job.id)?.errorCode, scenario.code);
+        assert.equal(result.outreachDraft, null);
+      });
+    }
+
+    it("an unattributable total failure (maxPages: 0, nothing ever attempted) falls back to unexpected_error, never throws", async () => {
+      const { deps, crawlRepo } = buildTestDeps({});
+      const result = await runCrawlJob(
+        { leadId: "lead-1", requestedUrl: "https://clinic.example.com/", maxPages: 0, lookupImpl, delayMs: 0 },
+        deps,
+      );
+      assert.equal(result.ok, true);
+      if (!result.ok) return;
+      assert.equal(result.finalStatus, "failed");
+      assert.equal(result.pagesFetched, 0);
+      assert.equal(crawlRepo.jobs.get(result.job.id)?.errorCode, "unexpected_error");
+    });
+
+    it("partial jobs (some pages fetched, some failed) are unaffected — status stays partial, error_code stays the existing page_limit_reached/null logic", async () => {
+      const { deps, crawlRepo } = buildTestDeps({
+        pages: {
+          "https://clinic.example.com/": `<html><body><main><h1>Home</h1><a href="/broken">Broken</a></main></body></html>`,
+        },
+        failUrls: new Set(["https://clinic.example.com/broken"]),
+        failureCodesByUrl: { "https://clinic.example.com/broken": "timeout" },
+      });
+
+      const result = await runCrawlJob(
+        { leadId: "lead-1", requestedUrl: "https://clinic.example.com/", maxPages: 3, lookupImpl, delayMs: 0 },
+        deps,
+      );
+      assert.equal(result.ok, true);
+      if (!result.ok) return;
+      assert.equal(result.finalStatus, "partial");
+      assert.ok(result.pagesFetched >= 1);
+      // A partial job's error_code is still governed by the pre-existing
+      // page_limit_reached/null logic — this fix only ever changes the
+      // pagesFetched === 0 branch.
+      assert.equal(crawlRepo.jobs.get(result.job.id)?.errorCode, null);
+    });
+
+    it("a fully completed job (nothing failed) is unaffected — status completed, error_code null", async () => {
+      // maxPages generous enough that hitPageLimit never triggers — the
+      // default fixture has exactly 2 pages ("/" and "/contato") with no
+      // further discoverable links, so both are fetched cleanly.
+      const { deps, crawlRepo } = buildTestDeps({});
+      const result = await runCrawlJob(
+        { leadId: "lead-1", requestedUrl: "https://clinic.example.com/", maxPages: 5, lookupImpl, delayMs: 0 },
+        deps,
+      );
+      assert.equal(result.ok, true);
+      if (!result.ok) return;
+      assert.equal(result.finalStatus, "completed");
+      assert.equal(crawlRepo.jobs.get(result.job.id)?.errorCode, null);
+    });
   });
 
   it("fails fast when robots.txt denies the seed path, without fetching pages", async () => {
@@ -366,5 +463,99 @@ describe("runCrawlJob (repository-backed orchestrator)", () => {
     if (result.ok) return;
     assert.equal(result.reason, "validation");
     assert.equal(crawlRepo.jobs.size, 0);
+  });
+});
+
+describe("selectJobFailureErrorCode (pure priority logic)", () => {
+  function signal(code: CrawlErrorCode, severity: CrawlFailureSignal["severity"], isPageLevel: boolean): CrawlFailureSignal {
+    return { code, severity, isPageLevel };
+  }
+
+  it("1. robots_denied wins when it's the first page-level signal", () => {
+    assert.equal(selectJobFailureErrorCode([signal("robots_denied", "info", true)]), "robots_denied");
+  });
+
+  it("2. blocked_host (private/SSRF) wins when it's the first page-level signal", () => {
+    assert.equal(selectJobFailureErrorCode([signal("blocked_host", "high", true)]), "blocked_host");
+  });
+
+  it("3. redirect_blocked wins when it's the first page-level signal", () => {
+    assert.equal(selectJobFailureErrorCode([signal("redirect_blocked", "medium", true)]), "redirect_blocked");
+  });
+
+  it("4. timeout wins when it's the first page-level signal", () => {
+    assert.equal(selectJobFailureErrorCode([signal("timeout", "medium", true)]), "timeout");
+  });
+
+  it("6. no signals at all falls back to unexpected_error", () => {
+    assert.equal(selectJobFailureErrorCode([]), "unexpected_error");
+  });
+
+  it("the FIRST page-level signal wins over any later page-level or finding-only signal, regardless of severity", () => {
+    const signals = [
+      signal("dns_failed", "medium", true), // the seed's own failure — must win
+      signal("persistence_failed", "high", false), // higher severity, but not page-level and not first
+      signal("timeout", "medium", true), // a later page's failure — not first
+    ];
+    assert.equal(selectJobFailureErrorCode(signals), "dns_failed");
+  });
+
+  it("when no page-level signal exists, the most severe finding-only signal wins, ties broken by recording order", () => {
+    const signals = [
+      signal("persistence_failed", "high", false),
+      signal("invalid_url", "high", false), // same severity, recorded second — first-recorded wins on a tie
+    ];
+    assert.equal(selectJobFailureErrorCode(signals), "persistence_failed");
+
+    const infoThenHigh = [
+      signal("robots_denied", "info", false),
+      signal("persistence_failed", "high", false),
+    ];
+    assert.equal(selectJobFailureErrorCode(infoThenHigh), "persistence_failed", "higher severity must win over recording order when severities differ");
+  });
+
+  it("12. the result is fully deterministic — identical input always produces the identical output", () => {
+    const signals = [signal("timeout", "medium", true), signal("persistence_failed", "high", false)];
+    const a = selectJobFailureErrorCode(signals);
+    const b = selectJobFailureErrorCode(signals);
+    assert.equal(a, b);
+    // The input array itself is never mutated (no sort-in-place side effect).
+    assert.deepEqual(signals, [signal("timeout", "medium", true), signal("persistence_failed", "high", false)]);
+  });
+});
+
+describe("job-level error reason fix: production refused, no outreach", () => {
+  it("11. the shared repository-selection gate refuses production regardless of --target", () => {
+    const env: LeadCaptureEnv = {
+      supabaseUrl: `https://${KNOWN_PROJECT_REFS.production}.supabase.co`,
+      supabaseServiceRoleKey: "x",
+      resendApiKey: null,
+      leadNotificationEmail: null,
+      leadFromEmail: null,
+      turnstileSiteKey: null,
+      turnstileSecretKey: null,
+      leadHashSecret: "x",
+      siteUrl: null,
+    };
+    const selection = selectRepositories({ dryRun: false, target: "staging", env });
+    assert.equal(selection.ok, false);
+    if (selection.ok) return;
+    assert.match(selection.reason, /production/);
+  });
+
+  it("10. a total-failure job never touches outreachRepo at all — no draft, no send-capable call", async () => {
+    const { deps, outreachRepo } = buildTestDeps({
+      failUrls: new Set(["https://clinic.example.com/"]),
+    });
+    const messagesBefore = outreachRepo.messages.size;
+
+    const result = await runCrawlJob(
+      { leadId: "lead-1", requestedUrl: "https://clinic.example.com/", maxPages: 2, lookupImpl, delayMs: 0 },
+      deps,
+    );
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.outreachDraft, null);
+    assert.equal(outreachRepo.messages.size, messagesBefore);
   });
 });
