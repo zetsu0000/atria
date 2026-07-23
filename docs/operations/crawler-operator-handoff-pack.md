@@ -108,10 +108,17 @@ Omit `--promote` here — promote deliberately, one candidate at a time, in step
 
 ### B. Review candidates
 
-There is no dedicated "list candidates" CLI yet. Inspect the
-`prospect_candidates` table directly (e.g. via the Supabase dashboard/SQL
-editor against the staging project) to pick one `<CANDIDATE_ID>` to promote.
-*(Not available yet: a CLI for this — documented here as such rather than invented.)*
+```bash
+npx tsx scripts/crawler/list-candidates.ts \
+  --target staging --discovery-job-id <DISCOVERY_JOB_ID> --only-promotable
+```
+
+Read-only, never crawls, never calls Google Places, never promotes. Lists
+each candidate with its status, obvious blockers (no website, directory
+listing, already-existing/duplicate), and a suggested action — pick one
+`<CANDIDATE_ID>` whose suggested action is `promote_candidate`. See
+`docs/technical/crawler-candidate-review-cli.md` for the full flag reference
+and decision rules.
 
 ### C. Promote one candidate
 
