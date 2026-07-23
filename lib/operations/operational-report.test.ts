@@ -12,6 +12,7 @@ import { renderOperationalReportMarkdown } from "./report/render-operational-rep
 import { calculatePlaceholderScore, SCORE_DISCLAIMER } from "@/lib/score/calculate";
 import { buildOutreachDraft } from "@/lib/outreach/draft";
 import type { ExtractionCandidate } from "@/lib/crawler/extraction-types";
+import { safeErrorMessage, type CrawlErrorCode } from "@/lib/crawler/errors";
 import { selectRepositories } from "./pipeline/select-repositories";
 import { KNOWN_PROJECT_REFS } from "./pipeline/target-guard";
 import type { LeadCaptureEnv } from "@/lib/security/env";
@@ -68,6 +69,28 @@ async function seedCrawlJob(deps: ReturnType<typeof buildDeps>, clinicId: string
   });
   if (!completed.ok) throw new Error("setup failed");
   return completed.value;
+}
+
+async function seedFailedCrawlJob(deps: ReturnType<typeof buildDeps>, clinicId: string, errorCode: CrawlErrorCode) {
+  const created = await deps.crawlRepo.createCrawlJob({
+    clinicId,
+    requestedUrl: "https://example.com/",
+    normalizedOrigin: "https://example.com",
+    maxPages: 3,
+  });
+  if (!created.ok) throw new Error("setup failed");
+  await deps.crawlRepo.claimCrawlJob(created.value.id);
+  const failed = await deps.crawlRepo.updateCrawlJobCounters(created.value.id, {
+    status: "failed",
+    pagesFetched: 0,
+    pagesDiscovered: 1,
+    pagesFailed: 1,
+    errorCode,
+    errorMessage: safeErrorMessage(errorCode),
+    completedAt: new Date().toISOString(),
+  });
+  if (!failed.ok) throw new Error("setup failed");
+  return failed.value;
 }
 
 const SAMPLE_CANDIDATES: ExtractionCandidate[] = [
@@ -321,6 +344,202 @@ describe("buildOperationalReport: safety invariants", () => {
       globalThis.fetch = originalFetch;
     }
     assert.equal(fetchCalled, false);
+  });
+});
+
+describe("buildOperationalReport: crawl failure surfacing (docs/technical/crawler-error-code-report-surfacing.md)", () => {
+  it("1. includes the redirect_blocked error_code verbatim", async () => {
+    const deps = buildDeps();
+    const clinic = await seedClinic(deps, "redirect-blocked-clinic");
+    await seedFailedCrawlJob(deps, clinic.id, "redirect_blocked");
+
+    const result = await buildOperationalReport({ clinicId: clinic.id, allowIncomplete: true }, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.report.websiteAnalyzed.crawlStatus, "failed");
+    assert.equal(result.report.websiteAnalyzed.errorCode, "redirect_blocked");
+    assert.equal(result.report.websiteAnalyzed.errorMessage, "A redirect target was blocked.");
+  });
+
+  it("2. includes an operator-friendly redirect_blocked explanation and suggested action", async () => {
+    const deps = buildDeps();
+    const clinic = await seedClinic(deps, "redirect-blocked-explanation");
+    await seedFailedCrawlJob(deps, clinic.id, "redirect_blocked");
+
+    const result = await buildOperationalReport({ clinicId: clinic.id, allowIncomplete: true }, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.match(result.report.websiteAnalyzed.failureExplanation ?? "", /redirecionamento/i);
+    assert.match(result.report.websiteAnalyzed.failureExplanation ?? "", /domínio aprovado/i);
+    assert.match(result.report.websiteAnalyzed.suggestedNextAction ?? "", /revisar manualmente/i);
+  });
+
+  it("6. robots_denied gets its own distinct, stable explanation (not the redirect_blocked one)", async () => {
+    const deps = buildDeps();
+    const clinic = await seedClinic(deps, "robots-denied-explanation");
+    await seedFailedCrawlJob(deps, clinic.id, "robots_denied");
+
+    const result = await buildOperationalReport({ clinicId: clinic.id, allowIncomplete: true }, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.report.websiteAnalyzed.errorCode, "robots_denied");
+    assert.match(result.report.websiteAnalyzed.failureExplanation ?? "", /robots\.txt/i);
+    assert.doesNotMatch(result.report.websiteAnalyzed.failureExplanation ?? "", /redirecionamento/i);
+  });
+
+  it("7. dns_failed and timeout map to their own stable, distinct explanations", async () => {
+    const dnsDeps = buildDeps();
+    const dnsClinic = await seedClinic(dnsDeps, "dns-failed-clinic");
+    await seedFailedCrawlJob(dnsDeps, dnsClinic.id, "dns_failed");
+    const dnsResult = await buildOperationalReport({ clinicId: dnsClinic.id, allowIncomplete: true }, dnsDeps);
+    assert.equal(dnsResult.ok, true);
+    if (!dnsResult.ok) return;
+    assert.match(dnsResult.report.websiteAnalyzed.failureExplanation ?? "", /dns/i);
+
+    const timeoutDeps = buildDeps();
+    const timeoutClinic = await seedClinic(timeoutDeps, "timeout-clinic");
+    await seedFailedCrawlJob(timeoutDeps, timeoutClinic.id, "timeout");
+    const timeoutResult = await buildOperationalReport({ clinicId: timeoutClinic.id, allowIncomplete: true }, timeoutDeps);
+    assert.equal(timeoutResult.ok, true);
+    if (!timeoutResult.ok) return;
+    assert.match(timeoutResult.report.websiteAnalyzed.failureExplanation ?? "", /timeout/i);
+
+    assert.notEqual(dnsResult.report.websiteAnalyzed.failureExplanation, timeoutResult.report.websiteAnalyzed.failureExplanation);
+  });
+
+  it("8. an unclassified/unknown-shaped errorCode still gets a safe, explicit fallback (never throws, never omits the field)", async () => {
+    const deps = buildDeps();
+    const clinic = await seedClinic(deps, "unexpected-error-clinic");
+    await seedFailedCrawlJob(deps, clinic.id, "unexpected_error");
+
+    const result = await buildOperationalReport({ clinicId: clinic.id, allowIncomplete: true }, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.report.websiteAnalyzed.errorCode, "unexpected_error");
+    assert.ok(result.report.websiteAnalyzed.failureExplanation, "expected a fallback explanation, not null");
+    assert.ok(result.report.websiteAnalyzed.suggestedNextAction, "expected a fallback suggested action, not null");
+  });
+
+  it("9. no medical-quality language appears anywhere in the failure explanation/suggested action", async () => {
+    const deps = buildDeps();
+    const clinic = await seedClinic(deps, "no-medical-in-failure-text");
+    await seedFailedCrawlJob(deps, clinic.id, "redirect_blocked");
+
+    const result = await buildOperationalReport({ clinicId: clinic.id, allowIncomplete: true }, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    const text = `${result.report.websiteAnalyzed.failureExplanation} ${result.report.websiteAnalyzed.suggestedNextAction}`.toLowerCase();
+    assert.doesNotMatch(text, /qualidade m[eé]dica|diagn[oó]stico|paciente|tratamento cl[ií]nico/);
+  });
+
+  it("10. the required disclaimer remains present even for a fully failed, 0-page crawl", async () => {
+    const deps = buildDeps();
+    const clinic = await seedClinic(deps, "disclaimer-on-failure");
+    await seedFailedCrawlJob(deps, clinic.id, "redirect_blocked");
+
+    const result = await buildOperationalReport({ clinicId: clinic.id, allowIncomplete: true }, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.report.disclaimer, SCORE_DISCLAIMER);
+  });
+
+  it("11. a successful (completed) crawl report is unaffected — errorCode/failureExplanation stay null", async () => {
+    const deps = buildDeps();
+    const clinic = await seedClinic(deps, "successful-crawl-unaffected");
+    const crawlJob = await seedCrawlJob(deps, clinic.id);
+    const score = calculatePlaceholderScore({ candidates: SAMPLE_CANDIDATES, pageCount: 2 });
+    await deps.scoreRepo.saveScore({ crawlJobId: crawlJob.id, clinicId: clinic.id, score });
+
+    const result = await buildOperationalReport({ clinicId: clinic.id }, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.report.websiteAnalyzed.crawlStatus, "completed");
+    assert.equal(result.report.websiteAnalyzed.errorCode, null);
+    assert.equal(result.report.websiteAnalyzed.errorMessage, null);
+    assert.equal(result.report.websiteAnalyzed.failureExplanation, null);
+    assert.equal(result.report.websiteAnalyzed.suggestedNextAction, null);
+  });
+
+  it("12. a partial crawl (page_limit_reached) now also gets an explanation, without changing any pre-existing warning field", async () => {
+    const deps = buildDeps();
+    const clinic = await seedClinic(deps, "partial-crawl-page-limit");
+    const created = await deps.crawlRepo.createCrawlJob({
+      clinicId: clinic.id,
+      requestedUrl: "https://example.com/",
+      normalizedOrigin: "https://example.com",
+      maxPages: 2,
+    });
+    if (!created.ok) return assert.fail();
+    await deps.crawlRepo.claimCrawlJob(created.value.id);
+    const partial = await deps.crawlRepo.updateCrawlJobCounters(created.value.id, {
+      status: "partial",
+      pagesFetched: 2,
+      pagesDiscovered: 5,
+      pagesFailed: 0,
+      errorCode: "page_limit_reached",
+      errorMessage: safeErrorMessage("page_limit_reached"),
+      completedAt: new Date().toISOString(),
+    });
+    if (!partial.ok) return assert.fail();
+    const score = calculatePlaceholderScore({ candidates: SAMPLE_CANDIDATES, pageCount: 2 });
+    await deps.scoreRepo.saveScore({ crawlJobId: partial.value.id, clinicId: clinic.id, score });
+
+    const result = await buildOperationalReport({ clinicId: clinic.id }, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.report.websiteAnalyzed.crawlStatus, "partial");
+    assert.equal(result.report.websiteAnalyzed.errorCode, "page_limit_reached");
+    assert.match(result.report.websiteAnalyzed.failureExplanation ?? "", /limite de páginas/i);
+    // Pre-existing warnings (score/extraction/outreach availability notes) are untouched.
+    assert.ok(result.report.warnings.some((w) => /Extracted content is missing/.test(w)));
+  });
+
+  it("15. no secret appears in the failure explanation/suggested action text", async () => {
+    const deps = buildDeps();
+    const clinic = await seedClinic(deps, "no-secrets-in-failure-text");
+    await seedFailedCrawlJob(deps, clinic.id, "redirect_blocked");
+
+    const result = await buildOperationalReport({ clinicId: clinic.id, allowIncomplete: true }, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    const text = `${result.report.websiteAnalyzed.errorMessage} ${result.report.websiteAnalyzed.failureExplanation} ${result.report.websiteAnalyzed.suggestedNextAction}`;
+    assert.doesNotMatch(text, /service_role|SUPABASE_|GOOGLE_PLACES_API_KEY|postgresql:\/\/|AIza|eyJ/);
+  });
+
+  it("13/14. JSON and Markdown output both surface the new fields stably", async () => {
+    const deps = buildDeps();
+    const clinic = await seedClinic(deps, "json-markdown-failure-stable");
+    await seedFailedCrawlJob(deps, clinic.id, "redirect_blocked");
+
+    const result = await buildOperationalReport({ clinicId: clinic.id, allowIncomplete: true }, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+
+    assert.deepEqual(
+      Object.keys(result.report.websiteAnalyzed).sort(),
+      [
+        "crawlJobId",
+        "requestedUrl",
+        "normalizedOrigin",
+        "crawlStatus",
+        "pagesFetched",
+        "pagesDiscovered",
+        "pagesFailed",
+        "startedAt",
+        "completedAt",
+        "errorCode",
+        "errorMessage",
+        "failureExplanation",
+        "suggestedNextAction",
+      ].sort(),
+    );
+    const roundTripped = JSON.parse(JSON.stringify(result.report.websiteAnalyzed));
+    assert.deepEqual(roundTripped, result.report.websiteAnalyzed);
+
+    const markdown = renderOperationalReportMarkdown(result.report);
+    assert.match(markdown, /\*\*Código de erro:\*\* `redirect_blocked`/);
+    assert.match(markdown, /\*\*Explicação para o operador:\*\*/);
+    assert.match(markdown, /\*\*Próxima ação sugerida:\*\*/);
   });
 });
 

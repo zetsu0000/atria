@@ -88,12 +88,19 @@ async function main(): Promise<void> {
 
   // Calibration v1: when the crawl fetched zero pages, pick the specific
   // unreachable reason the score should explain — reusing the job's own,
-  // now-specific error_code (see docs/technical/crawler-job-error-reason-fix.md)
-  // rather than one generic explanation for every distinct cause.
+  // now-specific error_code (see docs/technical/crawler-job-error-reason-fix.md
+  // and docs/technical/crawler-error-code-report-surfacing.md) rather than
+  // one generic explanation for every distinct cause. Any error_code not
+  // listed here (e.g. unexpected_error, which still covers TLS/certificate
+  // failures — there is no dedicated CrawlErrorCode for those yet) falls
+  // through to the honest, unclassified "unreachable_generic" bucket.
   let unreachableReason: UnreachableReasonCode | undefined;
   if (crawlJob.pagesFetched === 0) {
     if (!clinic.websiteUrl) unreachableReason = "no_website";
     else if (crawlJob.errorCode === "robots_denied") unreachableReason = "robots_denied";
+    else if (crawlJob.errorCode === "redirect_blocked") unreachableReason = "redirect_blocked";
+    else if (crawlJob.errorCode === "dns_failed") unreachableReason = "dns_failed";
+    else if (crawlJob.errorCode === "timeout") unreachableReason = "timeout";
     else unreachableReason = "unreachable_generic";
   }
 

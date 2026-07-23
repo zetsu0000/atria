@@ -155,12 +155,20 @@ function riskFlagsFor(report: OperationalReport, doNotContact: boolean, doNotCon
   if (!report.websiteAnalyzed.crawlJobId) {
     flags.push({ code: "no_crawl_job", severity: "high", message: "No crawl job found for this clinic." });
   } else if (report.websiteAnalyzed.crawlStatus === "failed") {
-    flags.push({ code: "crawl_failed", severity: "high", message: "The most recent crawl job failed." });
+    flags.push({
+      code: "crawl_failed",
+      severity: "high",
+      message: report.websiteAnalyzed.failureExplanation
+        ? `The most recent crawl job failed (${report.websiteAnalyzed.errorCode}): ${report.websiteAnalyzed.failureExplanation} Próxima ação sugerida: ${report.websiteAnalyzed.suggestedNextAction}`
+        : "The most recent crawl job failed.",
+    });
   } else if (report.websiteAnalyzed.crawlStatus === "partial") {
     flags.push({
       code: "crawl_partial",
       severity: "medium",
-      message: "The most recent crawl job only partially completed (page limit or fetch failures) — content may be incomplete.",
+      message: report.websiteAnalyzed.failureExplanation
+        ? `The most recent crawl job only partially completed (${report.websiteAnalyzed.errorCode}): ${report.websiteAnalyzed.failureExplanation} Próxima ação sugerida: ${report.websiteAnalyzed.suggestedNextAction}`
+        : "The most recent crawl job only partially completed (page limit or fetch failures) — content may be incomplete.",
     });
   }
 

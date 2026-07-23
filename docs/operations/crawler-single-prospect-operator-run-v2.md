@@ -284,3 +284,18 @@ discovery job (`1257e023-ead6-4fd0-9cc2-51c2ffedecfe`) now correctly shows
 matched to the real "SkinLaser - Higienópolis" clinic
 (`bbfd72a3-a013-4a6c-bd82-4a70479d694a`) — confirmed read-only, no staging
 row mutated. Limitations 1, 1a, 3, and 4 remain open.
+
+**Limitations 1 and 1a are fixed.** See
+`docs/technical/crawler-error-code-report-surfacing.md`. The operational
+report and human review pack now surface `crawl_jobs.error_code`,
+`error_message`, an operator-friendly explanation, and a suggested next
+action directly in `websiteAnalyzed` (and in the review pack's
+`crawl_failed`/`crawl_partial` risk-flag message) — no more manual DB
+query needed. Score evidence for a 0-page crawl now also distinguishes
+`redirect_blocked`/`dns_failed`/`timeout` from the generic bucket.
+Re-generating the report/review pack for this exact clinic
+(`e7a46c30-76b0-4832-80c6-778ccb6b67f3`, crawl job
+`b5348d75-d6c6-4109-a724-6c0ae600b437`) now correctly shows `errorCode:
+"redirect_blocked"` with the explanation "O crawl foi bloqueado por
+redirecionamento fora do domínio aprovado." — confirmed against real
+staging data. Limitations 3 and 4 remain open.

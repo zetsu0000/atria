@@ -101,6 +101,14 @@ export type HumanReviewPack = {
     pagesFailed: number | null;
     startedAt: string | null;
     completedAt: string | null;
+    /** The crawl job's raw error_code (e.g. "redirect_blocked"), verbatim — never a raw exception message. Null when the crawl has no error. */
+    errorCode: string | null;
+    /** The crawl job's already-safe, generic error_message — never a raw exception/stack trace. */
+    errorMessage: string | null;
+    /** Operator-friendly, Portuguese explanation of errorCode — see lib/operations/report/crawl-failure-explanation.ts. Null when errorCode is null. */
+    failureExplanation: string | null;
+    /** Operator-friendly, Portuguese suggested next step for this specific failure. Null when errorCode is null. */
+    suggestedNextAction: string | null;
   };
 
   /** 4. Score summary. */

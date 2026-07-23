@@ -75,6 +75,12 @@ export function renderOperationalReportMarkdown(report: OperationalReport): stri
       `- **Páginas:** ${report.websiteAnalyzed.pagesFetched ?? 0} obtidas / ${report.websiteAnalyzed.pagesDiscovered ?? 0} descobertas / ${report.websiteAnalyzed.pagesFailed ?? 0} com falha`,
     );
     lines.push(`- **Início:** ${report.websiteAnalyzed.startedAt ?? "—"} · **Conclusão:** ${report.websiteAnalyzed.completedAt ?? "—"}`);
+    if (report.websiteAnalyzed.errorCode) {
+      lines.push(`- **Código de erro:** \`${report.websiteAnalyzed.errorCode}\``);
+      lines.push(`- **Mensagem de erro:** ${report.websiteAnalyzed.errorMessage ?? "—"}`);
+      lines.push(`- **Explicação para o operador:** ${report.websiteAnalyzed.failureExplanation ?? "—"}`);
+      lines.push(`- **Próxima ação sugerida:** ${report.websiteAnalyzed.suggestedNextAction ?? "—"}`);
+    }
   } else {
     lines.push("_Nenhum crawl job encontrado para esta clínica._");
   }

@@ -72,25 +72,37 @@ export const SCORE_DIMENSION_LABELS_PT: Record<ScoreDimensionKey, string> = {
 
 /**
  * Why a site is unreachable (`pageCount === 0`) — calibrated in v1 to
- * distinguish *why* no evidence exists, since the three real-world causes
+ * distinguish *why* no evidence exists, since these real-world causes
  * warrant genuinely different explanations for a human reader, even
- * though all three still score 0 in every dimension (there is, in every
+ * though all of them still score 0 in every dimension (there is, in every
  * case, zero real evidence to award points for):
  *  - `"no_website"`: the clinic has no website URL recorded at all —
  *    there was never anything to crawl.
  *  - `"robots_denied"`: the site itself explicitly disallowed crawling
  *    via robots.txt — respected, never bypassed.
+ *  - `"redirect_blocked"`: the crawl's own redirect-safety guard refused
+ *    to follow a redirect outside the approved domain — see
+ *    docs/technical/crawler-error-code-report-surfacing.md (this is the
+ *    exact case found in crawler-single-prospect-operator-run-v2.md).
+ *  - `"dns_failed"`: DNS resolution failed for the host.
+ *  - `"timeout"`: the request timed out before completing.
  *  - `"unreachable_generic"` (the default when unspecified): any other
- *    reason a real crawl attempt still produced zero pages — connection
- *    failure, DNS failure, timeout, TLS/certificate error, or an
- *    unexpected error. There is currently no dedicated `CrawlErrorCode`
- *    that distinguishes a TLS/certificate failure from other low-level
- *    connection failures (see docs/technical/crawler-job-error-reason-fix.md's
- *    own documented limitation), so this bucket intentionally covers all
- *    of them with one honest, connection-oriented explanation rather
- *    than guessing a more specific cause that isn't actually known.
+ *    reason a real crawl attempt still produced zero pages — a
+ *    connection failure, TLS/certificate error, or an unexpected error.
+ *    There is currently no dedicated `CrawlErrorCode` that distinguishes
+ *    a TLS/certificate failure from other low-level connection failures
+ *    (see docs/technical/crawler-job-error-reason-fix.md's own
+ *    documented limitation), so this bucket intentionally covers all of
+ *    them with one honest, connection-oriented explanation rather than
+ *    guessing a more specific cause that isn't actually known.
  */
-export type UnreachableReasonCode = "no_website" | "robots_denied" | "unreachable_generic";
+export type UnreachableReasonCode =
+  | "no_website"
+  | "robots_denied"
+  | "redirect_blocked"
+  | "dns_failed"
+  | "timeout"
+  | "unreachable_generic";
 
 export type ScoreInput = {
   candidates: ExtractionCandidate[];
@@ -161,8 +173,14 @@ const UNREACHABLE_REASON_TEXT: Record<UnreachableReasonCode, (label: string) => 
     `Nenhum site próprio cadastrado para esta clínica — não há evidência para avaliar ${label}.`,
   robots_denied: (label) =>
     `O site bloqueou o acesso via robots.txt (respeitado, sem bypass) — não há evidência para avaliar ${label}.`,
+  redirect_blocked: (label) =>
+    `O crawl foi bloqueado por um redirecionamento para fora do domínio aprovado — não há evidência para avaliar ${label}.`,
+  dns_failed: (label) =>
+    `Falha de DNS impediu a resolução do domínio durante o scan — não há evidência para avaliar ${label}.`,
+  timeout: (label) =>
+    `O carregamento do site expirou (timeout) durante o scan — não há evidência para avaliar ${label}.`,
   unreachable_generic: (label) =>
-    `Site inacessível durante o scan (possível falha de conexão, DNS, certificado/TLS ou timeout) — não há evidência real para avaliar ${label}.`,
+    `Site inacessível durante o scan (possível falha de conexão, certificado/TLS ou outra causa não classificada) — não há evidência real para avaliar ${label}.`,
 };
 
 /**
@@ -515,8 +533,12 @@ function scoreFreshness(
 const UNREACHABLE_WARNING_TEXT: Record<UnreachableReasonCode, string> = {
   no_website: "Nenhum site próprio cadastrado para esta clínica — todas as dimensões refletem a ausência de um site para avaliar.",
   robots_denied: "O site bloqueou o acesso via robots.txt (respeitado, sem bypass) — todas as dimensões refletem essa limitação.",
+  redirect_blocked:
+    "O crawl foi bloqueado por um redirecionamento para fora do domínio aprovado (0 páginas obtidas) — todas as dimensões refletem essa limitação.",
+  dns_failed: "Falha de DNS impediu a resolução do domínio (0 páginas obtidas) — todas as dimensões refletem essa limitação.",
+  timeout: "O carregamento do site expirou (timeout, 0 páginas obtidas) — todas as dimensões refletem essa limitação.",
   unreachable_generic:
-    "Site inacessível durante o scan (0 páginas obtidas) — todas as dimensões refletem essa limitação (possível falha de conexão, DNS, certificado/TLS ou timeout).",
+    "Site inacessível durante o scan (0 páginas obtidas) — todas as dimensões refletem essa limitação (possível falha de conexão, certificado/TLS ou outra causa não classificada).",
 };
 
 /**
@@ -526,9 +548,10 @@ const UNREACHABLE_WARNING_TEXT: Record<UnreachableReasonCode, string> = {
  * to reference), never estimates patient outcomes, revenue, or
  * conversion. `pageCount === 0` (an unreachable site) is scored
  * explicitly as 0 in every dimension, with a reason tied to the specific
- * cause (`unreachableReason` — missing website, robots denied, or a
- * generic connection/TLS/DNS/timeout failure), rather than one generic
- * explanation for every distinct cause. A known third-party directory
+ * cause (`unreachableReason` — missing website, robots denied, redirect
+ * blocked, DNS failure, timeout, or a generic connection/TLS failure),
+ * rather than one generic explanation for every distinct cause. A known
+ * third-party directory
  * listing (`isDirectoryListing`) is scored explicitly as 0 with its own
  * clear reason for the same "no real evidence of the clinic's own site"
  * principle. See docs/technical/crawler-score-calibration-v1.md for the

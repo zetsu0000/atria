@@ -315,6 +315,54 @@ describe("calculateScoreV1: calibration (docs/technical/crawler-score-calibratio
     assert.doesNotMatch(credibility.rationale, /robots\.txt/i);
   });
 
+  it("5b. redirect_blocked, dns_failed, and timeout each produce their own distinct evidence text (docs/technical/crawler-error-code-report-surfacing.md), never a generic fallback when the specific reason is known", () => {
+    const redirect = calculateScoreV1({
+      candidates: [],
+      pageCount: 0,
+      unreachableReason: "redirect_blocked",
+      requestedUrl: "https://redirect-blocked.example.com.br/",
+    });
+    const dns = calculateScoreV1({
+      candidates: [],
+      pageCount: 0,
+      unreachableReason: "dns_failed",
+      requestedUrl: "https://dns-failed.example.com.br/",
+    });
+    const timeout = calculateScoreV1({
+      candidates: [],
+      pageCount: 0,
+      unreachableReason: "timeout",
+      requestedUrl: "https://timeout.example.com.br/",
+    });
+
+    const redirectCredibility = redirect.dimensions.find((d) => d.key === "credibility")!;
+    const dnsCredibility = dns.dimensions.find((d) => d.key === "credibility")!;
+    const timeoutCredibility = timeout.dimensions.find((d) => d.key === "credibility")!;
+
+    assert.equal(redirect.totalScore, 0);
+    assert.equal(dns.totalScore, 0);
+    assert.equal(timeout.totalScore, 0);
+
+    assert.match(redirectCredibility.rationale, /redirecionamento/i);
+    assert.match(redirectCredibility.rationale, /domínio aprovado/i);
+    assert.doesNotMatch(redirectCredibility.rationale, /robots\.txt/i);
+
+    assert.match(dnsCredibility.rationale, /dns/i);
+    assert.match(timeoutCredibility.rationale, /timeout/i);
+
+    // All three are distinguishable from each other and from the generic bucket.
+    const genericCredibility = calculateScoreV1(CONNECTION_FAILURE_FIXTURE).dimensions.find((d) => d.key === "credibility")!;
+    assert.notEqual(redirectCredibility.rationale, genericCredibility.rationale);
+    assert.notEqual(dnsCredibility.rationale, genericCredibility.rationale);
+    assert.notEqual(timeoutCredibility.rationale, genericCredibility.rationale);
+    assert.notEqual(redirectCredibility.rationale, dnsCredibility.rationale);
+    assert.notEqual(dnsCredibility.rationale, timeoutCredibility.rationale);
+
+    assert.ok(redirect.warnings.some((w) => /redirecionamento/i.test(w)));
+    assert.ok(dns.warnings.some((w) => /dns/i.test(w)));
+    assert.ok(timeout.warnings.some((w) => /timeout/i.test(w)));
+  });
+
   it("6. missing pages (no website at all) never produces a fake positive score, and the reason names the missing website specifically", () => {
     const result = calculateScoreV1(NO_WEBSITE_FIXTURE);
     assert.equal(result.totalScore, 0);

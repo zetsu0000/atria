@@ -12,6 +12,7 @@ import { renderHumanReviewPackMarkdown } from "./review/render-human-review-pack
 import { calculatePlaceholderScore, SCORE_DISCLAIMER } from "@/lib/score/calculate";
 import { buildOutreachDraft } from "@/lib/outreach/draft";
 import type { ExtractionCandidate } from "@/lib/crawler/extraction-types";
+import { safeErrorMessage, type CrawlErrorCode } from "@/lib/crawler/errors";
 import { selectRepositories } from "./pipeline/select-repositories";
 import { KNOWN_PROJECT_REFS } from "./pipeline/target-guard";
 import type { LeadCaptureEnv } from "@/lib/security/env";
@@ -68,6 +69,28 @@ async function seedCrawlJob(deps: ReturnType<typeof buildDeps>, clinicId: string
   });
   if (!completed.ok) throw new Error("setup failed");
   return completed.value;
+}
+
+async function seedFailedCrawlJob(deps: ReturnType<typeof buildDeps>, clinicId: string, errorCode: CrawlErrorCode) {
+  const created = await deps.crawlRepo.createCrawlJob({
+    clinicId,
+    requestedUrl: "https://www.skinlaser.com.br/",
+    normalizedOrigin: "https://www.skinlaser.com.br",
+    maxPages: 3,
+  });
+  if (!created.ok) throw new Error("setup failed");
+  await deps.crawlRepo.claimCrawlJob(created.value.id);
+  const failed = await deps.crawlRepo.updateCrawlJobCounters(created.value.id, {
+    status: "failed",
+    pagesFetched: 0,
+    pagesDiscovered: 1,
+    pagesFailed: 1,
+    errorCode,
+    errorMessage: safeErrorMessage(errorCode),
+    completedAt: new Date().toISOString(),
+  });
+  if (!failed.ok) throw new Error("setup failed");
+  return failed.value;
 }
 
 const SAMPLE_CANDIDATES: ExtractionCandidate[] = [
@@ -386,6 +409,137 @@ describe("buildHumanReviewPack: safety invariants", () => {
     assert.equal(result.pack.suggestedEmailDraft.available, false);
     assert.match(result.pack.suggestedEmailDraft.unavailableReason ?? "", /do_not_contact/);
     assert.ok(result.pack.riskFlags.some((f) => f.code === "do_not_contact" && f.severity === "high"));
+  });
+});
+
+describe("buildHumanReviewPack: crawl failure surfacing (docs/technical/crawler-error-code-report-surfacing.md)", () => {
+  it("3. includes the redirect_blocked error_code verbatim", async () => {
+    const deps = buildDeps();
+    const clinic = await seedClinic(deps, "review-redirect-blocked");
+    await seedFailedCrawlJob(deps, clinic.id, "redirect_blocked");
+
+    const result = await buildHumanReviewPack({ clinicId: clinic.id, allowIncomplete: true }, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.pack.websiteAnalyzed.errorCode, "redirect_blocked");
+  });
+
+  it("4. includes a suggested next action, both on websiteAnalyzed and as a risk flag", async () => {
+    const deps = buildDeps();
+    const clinic = await seedClinic(deps, "review-suggested-action");
+    await seedFailedCrawlJob(deps, clinic.id, "redirect_blocked");
+
+    const result = await buildHumanReviewPack({ clinicId: clinic.id, allowIncomplete: true }, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.match(result.pack.websiteAnalyzed.suggestedNextAction ?? "", /revisar manualmente/i);
+    const crawlFailedFlag = result.pack.riskFlags.find((f) => f.code === "crawl_failed");
+    assert.ok(crawlFailedFlag, "expected a crawl_failed risk flag");
+    assert.match(crawlFailedFlag!.message, /redirect_blocked/);
+    assert.match(crawlFailedFlag!.message, /revisar manualmente/i);
+    assert.equal(crawlFailedFlag!.severity, "high");
+  });
+
+  it("9. no medical-quality language appears in the risk-flag message either", async () => {
+    const deps = buildDeps();
+    const clinic = await seedClinic(deps, "review-no-medical-in-risk-flag");
+    await seedFailedCrawlJob(deps, clinic.id, "redirect_blocked");
+
+    const result = await buildHumanReviewPack({ clinicId: clinic.id, allowIncomplete: true }, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    const serialized = JSON.stringify(result.pack.riskFlags).toLowerCase();
+    assert.doesNotMatch(serialized, /qualidade m[eé]dica|diagn[oó]stico|paciente|tratamento cl[ií]nico/);
+  });
+
+  it("10. the required disclaimer remains present for a fully failed crawl", async () => {
+    const deps = buildDeps();
+    const clinic = await seedClinic(deps, "review-disclaimer-on-failure");
+    await seedFailedCrawlJob(deps, clinic.id, "redirect_blocked");
+
+    const result = await buildHumanReviewPack({ clinicId: clinic.id, allowIncomplete: true }, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.pack.disclaimer, SCORE_DISCLAIMER);
+  });
+
+  it("16. still has no send-capable dependency and never marks anything sent for a failed crawl", async () => {
+    const deps = buildDeps();
+    const clinic = await seedClinic(deps, "review-no-send-on-failure");
+    await seedFailedCrawlJob(deps, clinic.id, "redirect_blocked");
+
+    const result = await buildHumanReviewPack({ clinicId: clinic.id, allowIncomplete: true }, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.pack.suggestedEmailDraft.status === "draft" || result.pack.suggestedEmailDraft.status === null, true);
+    assert.equal(result.pack.suggestedWhatsappDraft.status === "draft" || result.pack.suggestedWhatsappDraft.status === null, true);
+  });
+
+  it("partial crawl (page_limit_reached) risk-flag message also gets the specific explanation", async () => {
+    const deps = buildDeps();
+    const clinic = await seedClinic(deps, "review-partial-page-limit");
+    const created = await deps.crawlRepo.createCrawlJob({
+      clinicId: clinic.id,
+      requestedUrl: "https://www.skinlaser.com.br/",
+      normalizedOrigin: "https://www.skinlaser.com.br",
+      maxPages: 2,
+    });
+    if (!created.ok) return assert.fail();
+    await deps.crawlRepo.claimCrawlJob(created.value.id);
+    const partial = await deps.crawlRepo.updateCrawlJobCounters(created.value.id, {
+      status: "partial",
+      pagesFetched: 2,
+      pagesDiscovered: 5,
+      pagesFailed: 0,
+      errorCode: "page_limit_reached",
+      errorMessage: safeErrorMessage("page_limit_reached"),
+      completedAt: new Date().toISOString(),
+    });
+    if (!partial.ok) return assert.fail();
+    await seedScore(deps, partial.value.id, clinic.id);
+
+    const result = await buildHumanReviewPack({ clinicId: clinic.id }, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    const partialFlag = result.pack.riskFlags.find((f) => f.code === "crawl_partial");
+    assert.ok(partialFlag);
+    assert.match(partialFlag!.message, /page_limit_reached/);
+  });
+
+  it("13/14. JSON and Markdown both surface the new fields stably", async () => {
+    const deps = buildDeps();
+    const clinic = await seedClinic(deps, "review-json-markdown-stable");
+    await seedFailedCrawlJob(deps, clinic.id, "redirect_blocked");
+
+    const result = await buildHumanReviewPack({ clinicId: clinic.id, allowIncomplete: true }, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+
+    assert.deepEqual(
+      Object.keys(result.pack.websiteAnalyzed).sort(),
+      [
+        "crawlJobId",
+        "requestedUrl",
+        "normalizedOrigin",
+        "crawlStatus",
+        "pagesFetched",
+        "pagesDiscovered",
+        "pagesFailed",
+        "startedAt",
+        "completedAt",
+        "errorCode",
+        "errorMessage",
+        "failureExplanation",
+        "suggestedNextAction",
+      ].sort(),
+    );
+    const roundTripped = JSON.parse(JSON.stringify(result.pack.websiteAnalyzed));
+    assert.deepEqual(roundTripped, result.pack.websiteAnalyzed);
+
+    const markdown = renderHumanReviewPackMarkdown(result.pack);
+    assert.match(markdown, /\*\*Código de erro:\*\* `redirect_blocked`/);
+    assert.match(markdown, /\*\*Explicação para o operador:\*\*/);
+    assert.match(markdown, /\*\*Próxima ação sugerida:\*\*/);
   });
 });
 

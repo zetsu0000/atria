@@ -90,6 +90,11 @@ export function renderHumanReviewPackMarkdown(pack: HumanReviewPack): string {
     lines.push(
       `- **Páginas:** ${pack.websiteAnalyzed.pagesFetched ?? 0} obtidas / ${pack.websiteAnalyzed.pagesDiscovered ?? 0} descobertas / ${pack.websiteAnalyzed.pagesFailed ?? 0} com falha`,
     );
+    if (pack.websiteAnalyzed.errorCode) {
+      lines.push(`- **Código de erro:** \`${pack.websiteAnalyzed.errorCode}\``);
+      lines.push(`- **Explicação para o operador:** ${pack.websiteAnalyzed.failureExplanation ?? "—"}`);
+      lines.push(`- **Próxima ação sugerida:** ${pack.websiteAnalyzed.suggestedNextAction ?? "—"}`);
+    }
   } else {
     lines.push("_Nenhum crawl job encontrado para esta clínica._");
   }

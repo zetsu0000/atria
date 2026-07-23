@@ -20,6 +20,7 @@ import type { OutreachRepository } from "@/lib/operations/repositories/outreach-
 import type { ScanAssetRecord, ScoreRecord } from "@/lib/operations/repositories/types";
 import type { RepoErrorReason } from "@/lib/operations/repositories/types";
 import { SCORE_DISCLAIMER } from "@/lib/score/calculate";
+import { explainCrawlFailure } from "./crawl-failure-explanation";
 import type {
   EvidenceEntry,
   OperationalReport,
@@ -209,6 +210,7 @@ export async function buildOperationalReport(
       : null;
   if (!latestOutreach) warnings.push("No outreach draft found for this clinic.");
 
+  const crawlFailureInfo = explainCrawlFailure(crawlJob?.errorCode ?? null);
   const evidenceByDimension = evidenceByDimensionFrom(score);
   const dims: ScoreDimensionKey[] = ["credibility", "clarity", "mobile", "actionability", "freshness"];
 
@@ -261,6 +263,10 @@ export async function buildOperationalReport(
       pagesFailed: crawlJob?.pagesFailed ?? null,
       startedAt: crawlJob?.startedAt ?? null,
       completedAt: crawlJob?.completedAt ?? null,
+      errorCode: crawlJob?.errorCode ?? null,
+      errorMessage: crawlJob?.errorMessage ?? null,
+      failureExplanation: crawlFailureInfo?.explanation ?? null,
+      suggestedNextAction: crawlFailureInfo?.suggestedNextAction ?? null,
     },
 
     scoreSummary: {
