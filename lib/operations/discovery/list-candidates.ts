@@ -9,8 +9,9 @@
  */
 import type { DiscoveryRepository } from "@/lib/operations/repositories/discovery-repository";
 import type { ClinicRepository } from "@/lib/operations/repositories/clinic-repository";
-import type { ProspectCandidateRecord, RepoErrorReason } from "@/lib/operations/repositories/types";
+import type { ClinicRecord, ProspectCandidateRecord, RepoErrorReason } from "@/lib/operations/repositories/types";
 import type { DiscoverySourceType } from "@/lib/discovery/types";
+import { normalizeWebsiteOrigin } from "@/lib/discovery/normalize";
 import { isDirectoryListing } from "@/lib/operations/prioritization/prioritize-prospects";
 import type {
   CandidateReviewAction,
@@ -30,6 +31,37 @@ export const DEFAULT_CANDIDATE_REVIEW_LIMIT = 20;
  */
 const FETCH_MULTIPLIER = 25;
 const MIN_FETCH_BATCH = 200;
+
+/** How many existing clinics to fetch once for the --include-existing website-origin check. Staging scale today is a handful of clinics — generous headroom either way. */
+const CLINIC_FETCH_BATCH = 500;
+
+type ExistingClinicMatch = { clinicId: string; reason: "dedupe_key" | "normalized_website" };
+
+/**
+ * Re-normalizes an already-stored origin string through the current
+ * (scheme-canonicalizing) normalizeWebsiteOrigin — safe and idempotent
+ * even for rows persisted before the fix in
+ * docs/technical/crawler-website-dedupe-normalization.md, since it never
+ * reads or needs the original raw websiteUrl.
+ */
+function canonicalOriginKey(storedOrigin: string | null): string | null {
+  return normalizeWebsiteOrigin(storedOrigin);
+}
+
+function buildClinicOriginIndex(clinics: ClinicRecord[]): Map<string, string> {
+  const index = new Map<string, string>();
+  for (const clinic of clinics) {
+    const key = canonicalOriginKey(clinic.normalizedWebsiteOrigin);
+    // First clinic wins on a collision — an intentionally simple,
+    // deterministic tie-break; two clinics genuinely sharing one website
+    // would be a data anomaly worth a human's attention regardless of
+    // which one this surfaces.
+    if (key && !index.has(key)) {
+      index.set(key, clinic.id);
+    }
+  }
+  return index;
+}
 
 export type ListCandidatesForReviewInput = {
   discoveryJobId?: string | null;
@@ -71,7 +103,7 @@ function extractSourcePlaceId(sourceAttribution: Record<string, unknown>): strin
  */
 function classifyCandidate(
   candidate: ProspectCandidateRecord,
-  existingClinicId: string | null,
+  existingClinicMatch: ExistingClinicMatch | null,
 ): { blockers: string[]; suggestedAction: CandidateReviewAction } {
   const blockers: string[] = [];
 
@@ -100,8 +132,12 @@ function classifyCandidate(
     return { blockers, suggestedAction: "blocked_directory" };
   }
 
-  if (existingClinicId) {
-    blockers.push(`Já existe uma clínica com a mesma identidade (dedupe): ${existingClinicId}.`);
+  if (existingClinicMatch) {
+    const blocker =
+      existingClinicMatch.reason === "dedupe_key"
+        ? `Já existe uma clínica com a mesma identidade (dedupe): ${existingClinicMatch.clinicId}.`
+        : `Já existe uma clínica com o mesmo website (normalizado, http/https tratados como o mesmo site): ${existingClinicMatch.clinicId}.`;
+    blockers.push(blocker);
     return { blockers, suggestedAction: "blocked_existing" };
   }
 
@@ -145,9 +181,19 @@ export async function listCandidatesForReview(
     candidates = candidates.filter((c) => c.status === statusFilter);
   }
 
+  // Fetched once (not per-candidate) so the website-origin check below is a
+  // single extra read regardless of how many candidates are being reviewed.
+  let clinicOriginIndex: Map<string, string> | null = null;
+  if (includeExisting) {
+    const clinicsResult = await deps.clinicRepo.listClinics(CLINIC_FETCH_BATCH);
+    if (clinicsResult.ok) {
+      clinicOriginIndex = buildClinicOriginIndex(clinicsResult.value);
+    }
+  }
+
   const items: CandidateReviewItem[] = [];
   for (const candidate of candidates) {
-    let existingClinicId: string | null = null;
+    let existingClinicMatch: ExistingClinicMatch | null = null;
     // Only worth the extra lookup for candidates that aren't already
     // definitively dispositioned — a promoted/duplicate/rejected candidate
     // already carries its own explanation.
@@ -157,13 +203,26 @@ export async function listCandidatesForReview(
       candidate.status !== "duplicate" &&
       candidate.status !== "rejected"
     ) {
+      // 1. Exact identity match first (same signal promote-candidate.ts
+      // uses to link idempotently instead of creating a duplicate clinic —
+      // name/phone/email/city/website all agree).
       const clinicMatch = await deps.clinicRepo.findClinicByDedupeKey(candidate.dedupeKey);
       if (clinicMatch.ok && clinicMatch.value) {
-        existingClinicId = clinicMatch.value.id;
+        existingClinicMatch = { clinicId: clinicMatch.value.id, reason: "dedupe_key" };
+      } else if (clinicOriginIndex) {
+        // 2. Fall back to a website-only match (scheme-insensitive) —
+        // catches the same real business discovered under a different
+        // listing name, e.g. a second Google Places entry for the same
+        // clinic. See docs/technical/crawler-website-dedupe-normalization.md.
+        const candidateOriginKey = canonicalOriginKey(candidate.normalizedWebsiteOrigin);
+        const matchedClinicId = candidateOriginKey ? clinicOriginIndex.get(candidateOriginKey) : undefined;
+        if (matchedClinicId) {
+          existingClinicMatch = { clinicId: matchedClinicId, reason: "normalized_website" };
+        }
       }
     }
 
-    const { blockers, suggestedAction } = classifyCandidate(candidate, existingClinicId);
+    const { blockers, suggestedAction } = classifyCandidate(candidate, existingClinicMatch);
 
     if (onlyPromotable && suggestedAction !== "promote_candidate") {
       continue;
@@ -181,7 +240,8 @@ export async function listCandidatesForReview(
       state: candidate.state,
       status: candidate.status,
       promotedClinicId: candidate.promotedClinicId,
-      existingClinicId,
+      existingClinicId: existingClinicMatch?.clinicId ?? null,
+      existingClinicMatchReason: existingClinicMatch?.reason ?? null,
       blockers,
       suggestedAction,
       createdAt: candidate.createdAt,

@@ -38,6 +38,27 @@ export function normalizeEmail(raw: string | null | undefined): string | null {
 /**
  * Best-effort origin extraction without network.
  * Invalid / non-http(s) URLs return null (caller may still keep raw URL for review).
+ *
+ * http:// and https:// are treated as the same identity here — for dedupe
+ * purposes a candidate/clinic discovered as "http://example.com" and one
+ * discovered as "https://example.com" are the same real-world website (see
+ * docs/technical/crawler-website-dedupe-normalization.md). This is a pure,
+ * static, no-network string transform used only for identity/dedupe
+ * comparisons; it never touches crawl-time safety. In particular:
+ *  - `lib/crawler/url-policy.ts`'s `isSameOrigin` (the SSRF/redirect-safety
+ *    same-origin check the bounded crawl loop enforces) is a deliberately
+ *    scheme-strict, independent function and is untouched by this.
+ *  - `lib/crawler/url-policy.ts`'s `canonicalizeHttpToHttpsIfSafe` (the
+ *    network-validated http->https starting-URL upgrade) is also untouched
+ *    — this function never makes a network call and never decides what
+ *    URL a crawl actually requests.
+ *
+ * www vs. apex (e.g. "www.example.com" vs "example.com") is intentionally
+ * NOT normalized here — the repo has no established convention that they
+ * are always the same site (some businesses run genuinely distinct content
+ * on each), so silently merging them could hide a real difference. See
+ * docs/technical/crawler-website-dedupe-normalization.md's "what is
+ * intentionally not normalized" section.
  */
 export function normalizeWebsiteOrigin(raw: string | null | undefined): string | null {
   if (!raw) return null;
@@ -47,7 +68,8 @@ export function normalizeWebsiteOrigin(raw: string | null | undefined): string |
     const url = new URL(trimmed.includes("://") ? trimmed : `https://${trimmed}`);
     if (url.protocol !== "http:" && url.protocol !== "https:") return null;
     if (url.username || url.password) return null;
-    return url.origin.toLowerCase();
+    const origin = url.origin.toLowerCase();
+    return origin.replace(/^http:/, "https:");
   } catch {
     return null;
   }

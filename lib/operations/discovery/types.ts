@@ -33,13 +33,26 @@ export type CandidateReviewItem = {
   /** Set when status is "promoted_to_clinic". */
   promotedClinicId: string | null;
   /**
-   * Set only when --include-existing was requested and a live dedupe check
+   * Set only when --include-existing was requested and a live check
    * against the clinics table found a different, already-existing clinic
-   * sharing this candidate's dedupe key. Never populated for candidates
-   * already dispositioned (promoted_to_clinic/duplicate/rejected) — their
-   * own status already explains why they're not promotable.
+   * that is likely the same real-world business. Never populated for
+   * candidates already dispositioned (promoted_to_clinic/duplicate/
+   * rejected) — their own status already explains why they're not
+   * promotable.
    */
   existingClinicId: string | null;
+  /**
+   * Explains *why* existingClinicId matched — "dedupe_key" for an exact
+   * match (identical name/phone/email/city/website, the same signal
+   * promote-candidate.ts uses to link idempotently instead of creating a
+   * duplicate clinic), or "normalized_website" when only the website
+   * matches (scheme-insensitive: http:// and https:// are the same
+   * identity — see docs/technical/crawler-website-dedupe-normalization.md)
+   * but the listing name/details differ, e.g. the same clinic discovered
+   * under two different Google Places listings. Null when existingClinicId
+   * is null.
+   */
+  existingClinicMatchReason: "dedupe_key" | "normalized_website" | null;
   blockers: string[];
   suggestedAction: CandidateReviewAction;
   createdAt: string;

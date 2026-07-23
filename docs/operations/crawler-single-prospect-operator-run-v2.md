@@ -270,3 +270,17 @@ promotion and a real (failed) crawl attempt.
 3. Treat Limitation 3 (screenshot capture's redirect-target exposure) as a security-review follow-up, not a blocker for continued staging use — but do not enable `SCREENSHOT_STORAGE_BUCKET` in a real commercial run until it's addressed, since a stored screenshot of an unintended redirect target would be a real, retrievable artifact instead of today's harmless `pending_storage` no-op.
 4. For the next single-prospect rehearsal, either retry a fresh query/location to get a clean successful crawl end-to-end (to validate the *happy path* through review decision → manual outreach packet → rehearsal log, which neither v1 nor v2 has exercised yet), or deliberately pick a clinic candidate to specifically exercise the `needs_changes` review-decision path with genuinely-collected (not zero-page) evidence.
 5. Consider the small read-only `crawler:crawl-job:show` CLI from Limitation 4 as a lightweight, low-risk addition alongside the candidate review CLI.
+
+## Follow-up (2026-07-23)
+
+**Limitation 2 is fixed.** See `docs/technical/crawler-website-dedupe-normalization.md`.
+`normalizeWebsiteOrigin` now canonicalizes scheme (http/https treated as
+the same identity), and `crawler:candidates:list --include-existing` was
+extended with a second, website-only match (beyond the exact dedupe-key
+match) so it works even for candidates/clinics recorded before the fix, no
+backfill required. Re-running this exact scenario against the same
+discovery job (`1257e023-ead6-4fd0-9cc2-51c2ffedecfe`) now correctly shows
+"Skinlaser Dermatologia Médica Ltda - Moema" as `blocked_existing`,
+matched to the real "SkinLaser - Higienópolis" clinic
+(`bbfd72a3-a013-4a6c-bd82-4a70479d694a`) — confirmed read-only, no staging
+row mutated. Limitations 1, 1a, 3, and 4 remain open.

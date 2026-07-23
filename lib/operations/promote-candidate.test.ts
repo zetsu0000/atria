@@ -98,4 +98,52 @@ describe("promoteCandidateToClinic (transaction shape)", () => {
     if (result.ok) return;
     assert.equal(result.reason, "not_found");
   });
+
+  it("10. documents current, unchanged behavior for a website-only duplicate (different dedupe key, same normalized website): promotion still creates a second clinic rather than linking — this is intentionally out of scope for the website-dedupe-normalization fix (docs/technical/crawler-website-dedupe-normalization.md); the candidate review CLI's --include-existing check is the enforcement point for this case today, not promote-candidate.ts", async () => {
+    const discoveryRepo = new FakeDiscoveryRepository();
+    const clinicRepo = new FakeClinicRepository();
+
+    // An already-promoted clinic for a real website.
+    const existingClinicResult = await clinicRepo.createClinic({
+      displayName: "SkinLaser - Higienópolis",
+      normalizedName: "skinlaser higienopolis",
+      websiteUrl: "https://www.skinlaser.com.br/",
+      normalizedWebsiteOrigin: "https://www.skinlaser.com.br",
+      city: null,
+      state: "SP",
+      specialty: "dermatology_clinic",
+      status: "prospect",
+      sourceType: "google_places",
+      sourceAttribution: {},
+      dedupeKey: "already-existing-skinlaser",
+    });
+    if (!existingClinicResult.ok) return assert.fail();
+
+    // A different candidate for the *same real website*, discovered under
+    // a different listing name/place id — its dedupeKey is necessarily
+    // different (name differs), even though the website is the same site
+    // once http/https are treated as equivalent.
+    const candidate = await recordCandidate(discoveryRepo, {
+      rawName: "Skinlaser Dermatologia Médica Ltda - Moema",
+      normalizedName: "skinlaser dermatologia medica ltda moema",
+      websiteUrl: "http://www.skinlaser.com.br/",
+      normalizedWebsiteOrigin: "http://www.skinlaser.com.br",
+      dedupeKey: "different-listing-same-website",
+    });
+
+    const result = await promoteCandidateToClinic(candidate.id, { discoveryRepo, clinicRepo });
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+
+    // Current, unchanged behavior: a *new*, second clinic row is created —
+    // promote-candidate.ts only ever links idempotently on an *exact*
+    // dedupeKey match (asserted above by the existing idempotent test),
+    // never on a website-only match. An operator following the documented
+    // workflow (docs/operations/crawler-operator-handoff-pack.md Step B)
+    // would have already seen this flagged as blocked_existing by
+    // `crawler:candidates:list --include-existing` before ever reaching
+    // this promote step.
+    assert.notEqual(result.clinic.id, existingClinicResult.value.id);
+    assert.equal(clinicRepo.clinics.size, 2);
+  });
 });

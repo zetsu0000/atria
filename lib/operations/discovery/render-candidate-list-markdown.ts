@@ -27,7 +27,10 @@ function renderItem(item: CandidateReviewItem, index: number): string {
   lines.push(`- **Origem:** ${item.sourceType}${item.sourcePlaceId ? ` (place_id: ${item.sourcePlaceId})` : ""}`);
   lines.push(`- **Localização:** ${[item.city, item.state].filter(Boolean).join(", ") || "—"}`);
   if (item.promotedClinicId) lines.push(`- **Clínica promovida:** ${item.promotedClinicId}`);
-  if (item.existingClinicId) lines.push(`- **Clínica existente (dedupe):** ${item.existingClinicId}`);
+  if (item.existingClinicId) {
+    const matchLabel = item.existingClinicMatchReason === "normalized_website" ? "mesmo website" : "dedupe";
+    lines.push(`- **Clínica existente (${matchLabel}):** ${item.existingClinicId}`);
+  }
   lines.push("");
   if (item.blockers.length > 0) {
     lines.push("**Bloqueios:**");

@@ -59,7 +59,7 @@ npm run crawler:candidates:list -- \
 | `--status <status>` | No | `all` | One of `new`, `needs_review`, `duplicate`, `rejected`, `promoted_to_clinic`, `all`. |
 | `--source <source>` | No | any | One of `manual`, `csv_import`, `google_places`, `web_search`, `directory`, `other`. |
 | `--query <text>` | No | none | Case-insensitive substring match against the candidate's raw name. |
-| `--include-existing` | No | off | Runs one extra read-only lookup per not-yet-dispositioned candidate to check whether a clinic already exists with the same identity (dedupe key). |
+| `--include-existing` | No | off | Runs an extra read-only check per not-yet-dispositioned candidate for a clinic that already exists with the same identity: an exact dedupe-key match, or (new — see `docs/technical/crawler-website-dedupe-normalization.md`) a normalized-website-only match (http/https treated as the same site). |
 | `--only-promotable` | No | off | Restricts output to candidates whose suggested action is `promote_candidate`. |
 | `--limit <n>` | No | `20` | Max rows returned after filtering. |
 | `--output table\|json\|markdown` | No | `table` | Rendering format. |
@@ -75,7 +75,8 @@ Each candidate row includes:
 - `city`/`state`
 - `status` (the candidate's own persisted status)
 - `promoted_clinic_id` (set once a candidate has been promoted)
-- `existing_clinic_id` (set only when `--include-existing` finds a different, already-existing clinic sharing this candidate's dedupe key)
+- `existing_clinic_id` (set only when `--include-existing` finds a different, already-existing clinic — either an exact dedupe-key match or a website-only match)
+- `existing_clinic_match_reason` (`"dedupe_key"` or `"normalized_website"` — explains which kind of match was found; null when `existing_clinic_id` is null)
 - `blockers` — human-readable reasons this candidate isn't a clean promote
 - `suggested_action` — see below
 
@@ -94,7 +95,7 @@ Exactly one action is chosen per candidate, first matching rule wins:
 3. `status === "rejected"` → **`blocked_existing`** — already has a definitive prior disposition in the system.
 4. No `websiteUrl` → **`blocked_no_website`**.
 5. Website is a known third-party directory/aggregator (same allowlist prioritization uses — `isDirectoryListing` in `lib/operations/prioritization/prioritize-prospects.ts`) → **`blocked_directory`**.
-6. `--include-existing` found a different, already-existing clinic with the same dedupe key → **`blocked_existing`**.
+6. `--include-existing` found a different, already-existing clinic — exact dedupe-key match, or a website-only match (http/https treated as the same site — see `docs/technical/crawler-website-dedupe-normalization.md`) → **`blocked_existing`**.
 7. `status === "needs_review"` → **`manual_review`**.
 8. Otherwise (status `new`, has its own website, not a directory, no existing conflict) → **`promote_candidate`**.
 
@@ -129,7 +130,7 @@ useful for piping into another script or an artifact file.
 ## Limitations
 
 - Filters are applied client-side after one `listCandidates()` batch fetch (over-fetched generously — `Math.max(limit * 25, 200)` rows). In a staging database with a very large number of candidates, a narrow `--discovery-job-id` filter combined with a very small effective match count deep in an old job could theoretically fall outside this batch; raise `--limit` if a known-to-exist candidate doesn't appear.
-- `--include-existing` adds one extra read per not-yet-dispositioned candidate — fine at today's staging scale, but not optimized for a large candidate pool.
+- `--include-existing` adds one extra dedupe-key read per not-yet-dispositioned candidate, plus one single `listClinics(500)` read for the website-only check (fetched once per invocation, not per-candidate) — fine at today's staging scale, but not optimized for a large clinic or candidate table.
 - The `directory` source type and the `isDirectoryListing` allowlist are both small, explicit, manually-curated lists — this is a heuristic, not an exhaustive detector (same caveat prioritization already documents).
 - `--query` only matches the raw name, not website/city/specialty.
 

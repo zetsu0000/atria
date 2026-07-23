@@ -239,6 +239,7 @@ describe("listCandidatesForReview", () => {
         "status",
         "promotedClinicId",
         "existingClinicId",
+        "existingClinicMatchReason",
         "blockers",
         "suggestedAction",
         "createdAt",
@@ -377,6 +378,262 @@ describe("listCandidatesForReview", () => {
 
     const asMarkdown = renderCandidateListMarkdown(result.result);
     assert.ok(!asMarkdown.includes(FAKE_SECRET_MARKER), "raw sourceAttribution payload must never leak into markdown output");
+  });
+});
+
+describe("listCandidatesForReview: website-scheme-normalized duplicate detection", () => {
+  it("an http:// candidate matches an https:// existing clinic on the same website, even with a different listing name", async () => {
+    const deps = buildDeps();
+    await seedCandidate(deps, {
+      rawName: "Skinlaser Dermatologia Médica Ltda - Moema",
+      dedupeKey: "scheme-mismatch-http-candidate",
+      websiteUrl: "http://www.skinlaser.com.br/",
+      normalizedWebsiteOrigin: "http://www.skinlaser.com.br",
+    });
+    const clinic = await deps.clinicRepo.createClinic({
+      displayName: "SkinLaser - Higienópolis",
+      normalizedName: "skinlaser higienopolis",
+      websiteUrl: "https://www.skinlaser.com.br/",
+      normalizedWebsiteOrigin: "https://www.skinlaser.com.br",
+      city: null,
+      state: "SP",
+      specialty: "dermatology_clinic",
+      status: "prospect",
+      sourceType: "google_places",
+      sourceAttribution: {},
+      dedupeKey: "already-promoted-skinlaser",
+    });
+    if (!clinic.ok) return assert.fail();
+
+    const result = await listCandidatesForReview({ includeExisting: true }, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    const item = result.result.items.find((i) => i.rawName.startsWith("Skinlaser Dermatologia"));
+    assert.ok(item);
+    assert.equal(item!.suggestedAction, "blocked_existing");
+    assert.equal(item!.existingClinicId, clinic.value.id);
+    assert.equal(item!.existingClinicMatchReason, "normalized_website");
+    assert.ok(item!.blockers.some((b) => b.includes("mesmo website")));
+  });
+
+  it("an https:// candidate matches an http:// existing clinic (reverse direction)", async () => {
+    const deps = buildDeps();
+    await seedCandidate(deps, {
+      rawName: "New Listing For Old Http Clinic",
+      dedupeKey: "scheme-mismatch-https-candidate",
+      websiteUrl: "https://oldclinic.example.com/",
+      normalizedWebsiteOrigin: "https://oldclinic.example.com",
+    });
+    const clinic = await deps.clinicRepo.createClinic({
+      displayName: "Old Clinic (recorded before the scheme fix)",
+      normalizedName: "old clinic",
+      websiteUrl: "http://oldclinic.example.com/",
+      normalizedWebsiteOrigin: "http://oldclinic.example.com",
+      city: null,
+      state: "SP",
+      specialty: "dermatology_clinic",
+      status: "prospect",
+      sourceType: "google_places",
+      sourceAttribution: {},
+      dedupeKey: "old-clinic-dedupe",
+    });
+    if (!clinic.ok) return assert.fail();
+
+    const result = await listCandidatesForReview({ includeExisting: true }, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    const item = result.result.items.find((i) => i.rawName === "New Listing For Old Http Clinic");
+    assert.ok(item);
+    assert.equal(item!.suggestedAction, "blocked_existing");
+    assert.equal(item!.existingClinicId, clinic.value.id);
+    assert.equal(item!.existingClinicMatchReason, "normalized_website");
+  });
+
+  it("--only-promotable excludes a scheme-only (normalized-website) duplicate", async () => {
+    const deps = buildDeps();
+    await seedCandidate(deps, {
+      rawName: "Scheme Duplicate Candidate",
+      dedupeKey: "scheme-only-promotable-check",
+      websiteUrl: "http://samesite.example.com/",
+      normalizedWebsiteOrigin: "http://samesite.example.com",
+    });
+    await seedCandidate(deps, {
+      rawName: "Genuinely New Candidate",
+      dedupeKey: "genuinely-new-1",
+      websiteUrl: "https://brandnew.example.com/",
+      normalizedWebsiteOrigin: "https://brandnew.example.com",
+    });
+    const clinic = await deps.clinicRepo.createClinic({
+      displayName: "Same Site Clinic",
+      normalizedName: "same site clinic",
+      websiteUrl: "https://samesite.example.com/",
+      normalizedWebsiteOrigin: "https://samesite.example.com",
+      city: null,
+      state: "SP",
+      specialty: "dermatology_clinic",
+      status: "prospect",
+      sourceType: "google_places",
+      sourceAttribution: {},
+      dedupeKey: "same-site-dedupe",
+    });
+    if (!clinic.ok) return assert.fail();
+
+    const result = await listCandidatesForReview({ includeExisting: true, onlyPromotable: true }, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.result.count, 1);
+    assert.equal(result.result.items[0]!.rawName, "Genuinely New Candidate");
+  });
+
+  it("JSON and markdown output surface existingClinicId and existingClinicMatchReason for a scheme-only match", async () => {
+    const deps = buildDeps();
+    await seedCandidate(deps, {
+      rawName: "Render Check Candidate",
+      dedupeKey: "render-check-1",
+      websiteUrl: "http://rendercheck.example.com/",
+      normalizedWebsiteOrigin: "http://rendercheck.example.com",
+    });
+    const clinic = await deps.clinicRepo.createClinic({
+      displayName: "Render Check Clinic",
+      normalizedName: "render check clinic",
+      websiteUrl: "https://rendercheck.example.com/",
+      normalizedWebsiteOrigin: "https://rendercheck.example.com",
+      city: null,
+      state: "SP",
+      specialty: "dermatology_clinic",
+      status: "prospect",
+      sourceType: "google_places",
+      sourceAttribution: {},
+      dedupeKey: "render-check-clinic-dedupe",
+    });
+    if (!clinic.ok) return assert.fail();
+
+    const result = await listCandidatesForReview({ includeExisting: true }, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+
+    const asJson = JSON.parse(JSON.stringify(result.result)) as CandidateReviewResult;
+    const jsonItem = asJson.items.find((i) => i.rawName === "Render Check Candidate");
+    assert.ok(jsonItem);
+    assert.equal(jsonItem!.existingClinicId, clinic.value.id);
+    assert.equal(jsonItem!.existingClinicMatchReason, "normalized_website");
+
+    const markdown = renderCandidateListMarkdown(result.result);
+    assert.match(markdown, new RegExp(`Clínica existente \\(mesmo website\\):.*${clinic.value.id}`));
+  });
+
+  it("an unrelated subdomain does not match — sub.example.com is a different origin from example.com", async () => {
+    const deps = buildDeps();
+    await seedCandidate(deps, {
+      rawName: "Subdomain Candidate",
+      dedupeKey: "subdomain-check-1",
+      websiteUrl: "https://clinica.example.com/",
+      normalizedWebsiteOrigin: "https://clinica.example.com",
+    });
+    const clinic = await deps.clinicRepo.createClinic({
+      displayName: "Apex Domain Clinic",
+      normalizedName: "apex domain clinic",
+      websiteUrl: "https://example.com/",
+      normalizedWebsiteOrigin: "https://example.com",
+      city: null,
+      state: "SP",
+      specialty: "dermatology_clinic",
+      status: "prospect",
+      sourceType: "google_places",
+      sourceAttribution: {},
+      dedupeKey: "apex-domain-dedupe",
+    });
+    if (!clinic.ok) return assert.fail();
+
+    const result = await listCandidatesForReview({ includeExisting: true }, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    const item = result.result.items.find((i) => i.rawName === "Subdomain Candidate");
+    assert.ok(item);
+    assert.equal(item!.existingClinicId, null);
+    assert.equal(item!.suggestedAction, "promote_candidate");
+  });
+
+  it("www vs. apex is intentionally NOT normalized — a candidate on the apex domain does not match an existing clinic on www", async () => {
+    const deps = buildDeps();
+    await seedCandidate(deps, {
+      rawName: "Apex Candidate",
+      dedupeKey: "apex-vs-www-1",
+      websiteUrl: "https://apexvswww.example.com/",
+      normalizedWebsiteOrigin: "https://apexvswww.example.com",
+    });
+    const clinic = await deps.clinicRepo.createClinic({
+      displayName: "Www Clinic",
+      normalizedName: "www clinic",
+      websiteUrl: "https://www.apexvswww.example.com/",
+      normalizedWebsiteOrigin: "https://www.apexvswww.example.com",
+      city: null,
+      state: "SP",
+      specialty: "dermatology_clinic",
+      status: "prospect",
+      sourceType: "google_places",
+      sourceAttribution: {},
+      dedupeKey: "www-clinic-dedupe",
+    });
+    if (!clinic.ok) return assert.fail();
+
+    const result = await listCandidatesForReview({ includeExisting: true }, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    const item = result.result.items.find((i) => i.rawName === "Apex Candidate");
+    assert.ok(item);
+    // Intentional, documented limitation — see
+    // docs/technical/crawler-website-dedupe-normalization.md.
+    assert.equal(item!.existingClinicId, null);
+    assert.equal(item!.suggestedAction, "promote_candidate");
+  });
+
+  it("the exact-dedupe-key match still takes priority over a website-only match when both would apply", async () => {
+    const deps = buildDeps();
+    const candidate = await seedCandidate(deps, {
+      rawName: "Priority Check Candidate",
+      dedupeKey: "priority-check-exact-match",
+      websiteUrl: "http://priority.example.com/",
+      normalizedWebsiteOrigin: "http://priority.example.com",
+    });
+    // Exact-dedupe-key clinic (would match via findClinicByDedupeKey).
+    const exactClinic = await deps.clinicRepo.createClinic({
+      displayName: "Exact Match Clinic",
+      normalizedName: "exact match clinic",
+      websiteUrl: "http://priority.example.com/",
+      normalizedWebsiteOrigin: "http://priority.example.com",
+      city: null,
+      state: "SP",
+      specialty: "dermatology_clinic",
+      status: "prospect",
+      sourceType: "google_places",
+      sourceAttribution: {},
+      dedupeKey: candidate.dedupeKey,
+    });
+    if (!exactClinic.ok) return assert.fail();
+    // A second, different clinic that would only match on website-origin.
+    const originOnlyClinic = await deps.clinicRepo.createClinic({
+      displayName: "Origin Only Clinic (different dedupe key)",
+      normalizedName: "origin only clinic",
+      websiteUrl: "https://priority.example.com/",
+      normalizedWebsiteOrigin: "https://priority.example.com",
+      city: null,
+      state: "SP",
+      specialty: "dermatology_clinic",
+      status: "prospect",
+      sourceType: "google_places",
+      sourceAttribution: {},
+      dedupeKey: "origin-only-different-dedupe",
+    });
+    if (!originOnlyClinic.ok) return assert.fail();
+
+    const result = await listCandidatesForReview({ includeExisting: true }, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    const item = result.result.items.find((i) => i.rawName === "Priority Check Candidate");
+    assert.ok(item);
+    assert.equal(item!.existingClinicId, exactClinic.value.id);
+    assert.equal(item!.existingClinicMatchReason, "dedupe_key");
   });
 });
 
