@@ -433,6 +433,84 @@ describe("prioritizeProspects: deterministic ordering and stable shapes", () => 
   });
 });
 
+describe("prioritizeProspects: score-calibration alignment (docs/technical/crawler-score-prioritization-alignment.md)", () => {
+  it("1. a high-scored clinic with screenshot + contact remains high after the alignment fix", async () => {
+    const deps = buildDeps();
+    const clinic = await seedClinic(deps, "alignment-high-clinic");
+    const crawlJob = await seedCrawlJob(deps, clinic.id, { status: "completed" });
+    await seedScreenshot(deps, crawlJob.id);
+    await seedScore(deps, clinic.id, 70);
+    await seedContact(deps, clinic.id);
+
+    const result = await prioritizeProspects({}, deps);
+    const item = result.items.find((i) => i.id === clinic.id)!;
+    assert.equal(item.priorityTier, "high");
+  });
+
+  it("2. a real non-zero score always outranks both a missing score and a real zero-total score", async () => {
+    const deps = buildDeps();
+
+    const realEvidenceClinic = await seedClinic(deps, "alignment-real-score-clinic");
+    await seedCrawlJob(deps, realEvidenceClinic.id, { status: "completed" });
+    await seedScore(deps, realEvidenceClinic.id, 60);
+    await seedContact(deps, realEvidenceClinic.id);
+
+    const missingScoreClinic = await seedClinic(deps, "alignment-missing-score-clinic");
+
+    // A clinic whose crawl was blocked by robots.txt: calculateScoreV1
+    // (lib/score/calculate.ts) zeroes every dimension for this case, so a
+    // real, computed score row exists with total: 0 — this must not be
+    // treated as "some evidence available."
+    const zeroScoreClinic = await seedClinic(deps, "alignment-zero-score-clinic");
+    await seedCrawlJob(deps, zeroScoreClinic.id, { status: "failed", errorCode: "robots_denied" });
+    await seedScore(deps, zeroScoreClinic.id, 0);
+
+    const result = await prioritizeProspects({}, deps);
+    const order = result.items.map((i) => i.id);
+    assert.ok(order.indexOf(realEvidenceClinic.id) < order.indexOf(missingScoreClinic.id));
+    assert.ok(order.indexOf(realEvidenceClinic.id) < order.indexOf(zeroScoreClinic.id));
+
+    const zeroItem = result.items.find((i) => i.id === zeroScoreClinic.id)!;
+    assert.ok(zeroItem.blockers.some((b) => /sem evidência de presença digital utilizável/.test(b)));
+    assert.ok(!zeroItem.reasons.some((r) => /Score digital disponível/.test(r)), "a hard-zero score must never be reported as a positive reason");
+  });
+
+  it("3. a directory listing stays capped at low/blocked even with every other signal maximally favorable", async () => {
+    const deps = buildDeps();
+    const clinic = await seedClinic(deps, "alignment-directory-strong-signals", {
+      websiteUrl: "https://www.doctoralia.com.br/some-doctor",
+      normalizedWebsiteOrigin: "https://www.doctoralia.com.br",
+    });
+    const crawlJob = await seedCrawlJob(deps, clinic.id, { status: "completed" });
+    await seedScreenshot(deps, crawlJob.id);
+    await seedScore(deps, clinic.id, 60);
+    await seedContact(deps, clinic.id);
+    await seedDecision(deps, clinic.id, "approved");
+
+    const result = await prioritizeProspects({}, deps);
+    const item = result.items.find((i) => i.id === clinic.id)!;
+    assert.ok(item.priorityTier === "low" || item.priorityTier === "blocked", `expected low/blocked, got ${item.priorityTier}`);
+    assert.notEqual(item.priorityTier, "medium");
+    assert.notEqual(item.priorityTier, "high");
+  });
+
+  it("7. robots_denied cannot reach medium/high tier even with contact + approved decision + salvageable screenshot", async () => {
+    const deps = buildDeps();
+    const clinic = await seedClinic(deps, "alignment-robots-denied-strong-signals");
+    const crawlJob = await seedCrawlJob(deps, clinic.id, { status: "failed", errorCode: "robots_denied" });
+    await seedScreenshot(deps, crawlJob.id);
+    await seedScore(deps, clinic.id, 0);
+    await seedContact(deps, clinic.id);
+    await seedDecision(deps, clinic.id, "approved");
+
+    const result = await prioritizeProspects({}, deps);
+    const item = result.items.find((i) => i.id === clinic.id)!;
+    assert.notEqual(item.priorityTier, "medium");
+    assert.notEqual(item.priorityTier, "high");
+    assert.ok(item.blockers.some((b) => /robots\.txt/.test(b)));
+  });
+});
+
 describe("prioritizeProspects: tier filter", () => {
   it("respects --tier by excluding non-matching items", async () => {
     const deps = buildDeps();

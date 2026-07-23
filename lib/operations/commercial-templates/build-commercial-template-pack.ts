@@ -24,6 +24,15 @@
  *    not be regenerated as if that request didn't happen. This is a
  *    stricter rule than priority tier alone provides (a needs_changes
  *    clinic isn't always hard-blocked in the tier score itself).
+ *  - A directory listing (`facts.isDirectoryListing`) never produces
+ *    copy either, checked explicitly rather than relying only on the
+ *    tier score — see
+ *    docs/technical/crawler-score-prioritization-alignment.md. The tier
+ *    scorer already caps a directory listing at "low" via a heavy
+ *    penalty, so this is defense-in-depth: a third-party directory page
+ *    is never the clinic's real presence, so copy referencing "your
+ *    site" must never be generated for one, independent of how the tier
+ *    math evolves elsewhere.
  *  - `rejected` and `do_not_contact` are already hard overrides inside
  *    the tier scorer (both force `priorityTier: "blocked"`), so they're
  *    covered by the tier check without any extra logic here.
@@ -239,6 +248,14 @@ export async function buildCommercialTemplatePack(
   }
 
   const isNeedsChanges = prioritized.facts.latestReviewDecision === "needs_changes";
+  // Defense-in-depth, on top of the fact that a directory listing is
+  // already numerically capped at "low" by prioritizeClinic/
+  // prioritizeCandidate's own -60 penalty (see
+  // docs/technical/crawler-score-prioritization-alignment.md): a
+  // third-party directory page is never the clinic's own presence, so
+  // copy must never be generated for one regardless of how the tier math
+  // evolves elsewhere.
+  const isDirectoryListing = prioritized.facts.isDirectoryListing;
 
   let whatsapp: CommercialCopySection;
   let email: CommercialCopySection;
@@ -249,6 +266,11 @@ export async function buildCommercialTemplatePack(
     whatsapp = unavailableCopy("whatsapp_manual", reason);
     email = unavailableCopy("email", reason);
     blockedReason = prioritized.priorityTier === "blocked" ? prioritized.blockers.join(" ") || reason : reason;
+  } else if (isDirectoryListing) {
+    const reason = "Website é uma listagem de diretório de terceiros, não o domínio próprio da clínica — sem evidência real da presença digital dela para gerar copy.";
+    whatsapp = unavailableCopy("whatsapp_manual", reason);
+    email = unavailableCopy("email", reason);
+    blockedReason = reason;
   } else if (prioritized.priorityTier === "blocked") {
     const reason = prioritized.blockers.length > 0 ? prioritized.blockers.join(" ") : "Prioridade bloqueada.";
     whatsapp = unavailableCopy("whatsapp_manual", "Prospect bloqueado — nenhuma copy externa é gerada. Ver blockedReason.");

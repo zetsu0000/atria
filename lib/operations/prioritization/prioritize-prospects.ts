@@ -172,7 +172,7 @@ export async function prioritizeClinic(
   const scoreResult = await deps.scoreRepo.getLatestForClinic(clinic.id);
   const clinicScore = scoreResult.ok ? scoreResult.value : null;
   const hasScore = Boolean(clinicScore);
-  if (hasScore && clinicScore) {
+  if (hasScore && clinicScore && clinicScore.total > 0) {
     score += 10;
     reasons.push(`Score digital disponível: ${clinicScore.total}/100 (${clinicScore.scoringVersion}).`);
     if (clinicScore.total >= 30 && clinicScore.total <= 85) {
@@ -182,6 +182,16 @@ export async function prioritizeClinic(
       score -= 5;
       blockers.push("Score já muito alto — pouco espaço de melhoria para posicionar a oferta.");
     }
+  } else if (hasScore && clinicScore) {
+    // Calibration v1 (lib/score/calculate.ts) zeroes every dimension for
+    // an unreachable site, a robots.txt refusal, or a directory listing —
+    // a real, computed 0/100 is not "some evidence available"; it is the
+    // same "nothing usable to show" signal as never having scored the
+    // clinic at all, so it must not earn the flat score-availability
+    // bonus above (previously it did, which could let a robots-denied or
+    // directory-listing clinic rank as "medium" priority on a hard zero).
+    score -= 15;
+    blockers.push(`Score calculado é ${clinicScore.total}/100 (${clinicScore.scoringVersion}) — sem evidência de presença digital utilizável.`);
   } else {
     score -= 15;
     blockers.push("Nenhum score disponível ainda para esta clínica.");

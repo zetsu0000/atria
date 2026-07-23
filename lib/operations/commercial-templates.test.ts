@@ -417,6 +417,43 @@ describe("buildCommercialTemplatePack: no external calls, no send path", () => {
   });
 });
 
+describe("buildCommercialTemplatePack: score-calibration alignment (docs/technical/crawler-score-prioritization-alignment.md)", () => {
+  it("a directory listing never receives copy, via the explicit isDirectoryListing check, even with strong other signals", async () => {
+    const deps = buildDeps();
+    const clinic = await seedHighTierClinic(deps, "alignment-directory-clinic");
+    await deps.clinicRepo.updateNormalizedWebsiteHost(clinic.id, {
+      websiteUrl: "https://www.doctoralia.com.br/some-doctor",
+      normalizedWebsiteOrigin: "https://www.doctoralia.com.br",
+    });
+
+    const result = await buildCommercialTemplatePack({ clinicId: clinic.id }, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.pack.whatsapp.available, false);
+    assert.equal(result.pack.email.available, false);
+    assert.match(result.pack.blockedReason ?? "", /diret[oó]rio/i);
+  });
+
+  it("7. robots_denied does not receive review-ready copy, even with contact + approved decision + salvageable screenshot", async () => {
+    const deps = buildDeps();
+    const clinic = await seedClinic(deps, "alignment-robots-denied-clinic");
+    const crawlJob = await seedCrawlJobCompleted(deps, clinic.id);
+    await deps.crawlRepo.updateCrawlJobCounters(crawlJob.id, { status: "failed", errorCode: "robots_denied" as never, completedAt: new Date().toISOString() });
+    await seedScreenshot(deps, crawlJob.id);
+    await seedScore(deps, clinic.id, 0);
+    await seedContact(deps, clinic.id);
+    await seedDecision(deps, clinic.id, "approved");
+
+    const result = await buildCommercialTemplatePack({ clinicId: clinic.id }, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.notEqual(result.pack.priorityTier, "high");
+    assert.notEqual(result.pack.priorityTier, "medium");
+    assert.equal(result.pack.whatsapp.available, false);
+    assert.equal(result.pack.email.available, false);
+  });
+});
+
 describe("buildCommercialTemplatePack: candidates and validation", () => {
   it("a not-yet-promoted candidate never produces copy, regardless of tier", async () => {
     const deps = buildDeps();
