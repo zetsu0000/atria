@@ -106,26 +106,42 @@ npx tsx scripts/crawler/discover-google-places.ts \
 
 Omit `--promote` here — promote deliberately, one candidate at a time, in step C.
 
-### B. Review candidates
+### B. Review candidates, then get a ranked shortlist
 
 ```bash
+# 1. list every candidate from this discovery job
 npx tsx scripts/crawler/list-candidates.ts \
   --target staging --discovery-job-id <DISCOVERY_JOB_ID> --only-promotable
+
+# 2. turn that same discovery job into a ranked, decision-ready shortlist
+npx tsx scripts/crawler/operator-shortlist.ts \
+  --target staging --discovery-job-id <DISCOVERY_JOB_ID> \
+  --include-existing --output markdown
 ```
 
-Read-only, never crawls, never calls Google Places, never promotes. Lists
-each candidate with its status, obvious blockers (no website, directory
-listing, already-existing/duplicate, a social-media/messaging profile
-like Instagram/WhatsApp used as the primary website — see
+Both commands are read-only — never crawl, never call Google Places, never
+promote. `list-candidates.ts` shows every candidate with its status,
+obvious blockers (no website, directory listing, already-existing/
+duplicate, a social-media/messaging profile like Instagram/WhatsApp used
+as the primary website — see
 `docs/technical/crawler-social-profile-website-classification.md`), an
 ICP (Ideal Customer Profile) classification (hospital/franchise/chain/
 wrong-audience businesses are never a clean `promote_candidate` — see
-`docs/technical/crawler-icp-classification.md`), and a suggested action —
-pick one `<CANDIDATE_ID>` whose suggested action is `promote_candidate`.
-See `docs/technical/crawler-candidate-review-cli.md` for the full flag
-reference and decision rules.
+`docs/technical/crawler-icp-classification.md`), and a suggested action.
 
-### C. Promote one candidate
+`operator-shortlist.ts` (see
+`docs/technical/crawler-operator-shortlist-cli.md`) goes one step further:
+it ranks the same candidates conservatively, prints a summary (total
+reviewed, actionable/blocked/duplicate/no-own-website counts), names the
+single recommended candidate if one is ready to promote (or a clear stop
+reason if none is), and prints the exact next commands to run — using
+real script names/flags only. Use its recommended `<CANDIDATE_ID>` in step
+C below, or fall back to manually picking a `promote_candidate` candidate
+from `list-candidates.ts` if the shortlist recommends `manual_review`
+instead. Never promote a candidate the shortlist marks as blocked or
+duplicate.
+
+### C. Promote one candidate — only after human confirmation
 
 ```bash
 # dry-run rehearsal (in-memory only)

@@ -19,6 +19,7 @@
     "crawler:discover:places": "tsx scripts/crawler/discover-google-places.ts",
     "crawler:promote": "tsx scripts/crawler/promote-candidate.ts",
     "crawler:candidates:list": "tsx scripts/crawler/list-candidates.ts",
+    "crawler:operator:shortlist": "tsx scripts/crawler/operator-shortlist.ts",
     "crawler:update-website": "tsx scripts/crawler/update-clinic-website.ts",
     "crawler:review-pack": "tsx scripts/crawler/generate-human-review-pack.ts",
     "crawler:review-queue": "tsx scripts/crawler/review-queue.ts",
