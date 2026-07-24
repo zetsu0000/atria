@@ -48,10 +48,12 @@ const VALID_STATUS_FILTERS = ["new", "needs_review", "duplicate", "rejected", "p
 const VALID_SOURCES = ["manual", "csv_import", "google_places", "web_search", "directory", "other"];
 
 function renderTable(rows: CandidateReviewItem[]): string {
-  const header = ["status", "action", "name", "website", "source", "id"];
+  const header = ["status", "action", "icp_fit", "org_type", "name", "website", "source", "id"];
   const cells = rows.map((r) => [
     r.status,
     r.suggestedAction,
+    r.icpFit,
+    r.organizationType,
     r.rawName.slice(0, 40),
     (r.websiteUrl ?? "—").slice(0, 40),
     r.sourceType,

@@ -454,6 +454,140 @@ describe("buildCommercialTemplatePack: score-calibration alignment (docs/technic
   });
 });
 
+describe("buildCommercialTemplatePack: ICP classification (docs/technical/crawler-icp-classification.md)", () => {
+  async function seedHighTierClinicNamed(
+    deps: ReturnType<typeof buildDeps>,
+    dedupeKey: string,
+    displayName: string,
+    websiteUrl: string,
+    normalizedWebsiteOrigin: string,
+  ) {
+    const clinic = await deps.clinicRepo.createClinic({
+      displayName,
+      normalizedName: displayName.toLowerCase(),
+      websiteUrl,
+      normalizedWebsiteOrigin,
+      city: "São Paulo",
+      state: "SP",
+      specialty: "skin_care_clinic",
+      status: "prospect",
+      sourceType: "google_places",
+      sourceAttribution: {},
+      dedupeKey,
+    });
+    if (!clinic.ok) throw new Error("setup failed");
+    const crawlJob = await seedCrawlJobCompleted(deps, clinic.value.id);
+    await seedScreenshot(deps, crawlJob.id);
+    await seedScore(deps, clinic.value.id, 70);
+    await seedContact(deps, clinic.value.id);
+    return clinic.value;
+  }
+
+  it("13. commercial templates are withheld for a hospital, even with maximal (high-tier-shaped) evidence", async () => {
+    const deps = buildDeps();
+    const clinic = await seedHighTierClinicNamed(
+      deps,
+      "icp-hospital-template",
+      "Hospital Santa Vida",
+      "https://hospitalsantavida.example.com.br/",
+      "https://hospitalsantavida.example.com.br",
+    );
+
+    const result = await buildCommercialTemplatePack({ clinicId: clinic.id }, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.pack.whatsapp.available, false);
+    assert.equal(result.pack.email.available, false);
+    assert.match(result.pack.warnings.join(" "), /enterprise futura|rede\/hospital/i);
+  });
+
+  it("commercial templates are withheld for a franchise unit, even with maximal (high-tier-shaped) evidence", async () => {
+    const deps = buildDeps();
+    const clinic = await seedHighTierClinicNamed(
+      deps,
+      "icp-franchise-template",
+      "Rede Dermato Brasil - Franquia Curitiba",
+      "https://redeDermatoBrasilFranquia.example.com.br/",
+      "https://redeDermatoBrasilFranquia.example.com.br",
+    );
+
+    const result = await buildCommercialTemplatePack({ clinicId: clinic.id }, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.pack.whatsapp.available, false);
+    assert.equal(result.pack.email.available, false);
+  });
+
+  it("commercial templates are hard-blocked for a wrong-audience business (blocked ICP)", async () => {
+    const deps = buildDeps();
+    const clinic = await seedHighTierClinicNamed(
+      deps,
+      "icp-wrong-audience-template",
+      "Farmácia Popular Bem Estar",
+      "https://farmaciapopularbemestar.example.com.br/",
+      "https://farmaciapopularbemestar.example.com.br",
+    );
+
+    const result = await buildCommercialTemplatePack({ clinicId: clinic.id }, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.pack.priorityTier, "blocked");
+    assert.equal(result.pack.whatsapp.available, false);
+    assert.equal(result.pack.email.available, false);
+    assert.ok(result.pack.blockedReason);
+  });
+
+  it("14. existing rejected/do_not_contact/needs_changes behavior is unchanged for an otherwise-core-ICP clinic", async () => {
+    const deps = buildDeps();
+    const clinic = await seedHighTierClinic(deps, "icp-unchanged-rejected");
+    await seedDecision(deps, clinic.id, "rejected");
+    const rejectedResult = await buildCommercialTemplatePack({ clinicId: clinic.id }, deps);
+    assert.equal(rejectedResult.ok, true);
+    if (rejectedResult.ok) {
+      assert.equal(rejectedResult.pack.whatsapp.available, false);
+      assert.equal(rejectedResult.pack.email.available, false);
+    }
+
+    const clinic2 = await seedHighTierClinic(deps, "icp-unchanged-do-not-contact");
+    await deps.clinicRepo.setDoNotContact(clinic2.id, true, "Pedido do cliente.");
+    const dncResult = await buildCommercialTemplatePack({ clinicId: clinic2.id }, deps);
+    assert.equal(dncResult.ok, true);
+    if (dncResult.ok) {
+      assert.equal(dncResult.pack.whatsapp.available, false);
+      assert.equal(dncResult.pack.email.available, false);
+    }
+
+    const clinic3 = await seedHighTierClinic(deps, "icp-unchanged-needs-changes");
+    await seedDecision(deps, clinic3.id, "needs_changes");
+    const needsChangesResult = await buildCommercialTemplatePack({ clinicId: clinic3.id }, deps);
+    assert.equal(needsChangesResult.ok, true);
+    if (needsChangesResult.ok) {
+      assert.equal(needsChangesResult.pack.whatsapp.available, false);
+      assert.equal(needsChangesResult.pack.email.available, false);
+      assert.match(needsChangesResult.pack.blockedReason ?? "", /needs_changes/i);
+    }
+  });
+
+  it("20. no medical-quality language or secret-shaped value appears anywhere in an ICP-withheld pack", async () => {
+    const deps = buildDeps();
+    const clinic = await seedHighTierClinicNamed(
+      deps,
+      "icp-no-medical-no-secrets",
+      "Hospital Sem Alegações",
+      "https://hospitalsemalegacoes.example.com.br/",
+      "https://hospitalsemalegacoes.example.com.br",
+    );
+
+    const result = await buildCommercialTemplatePack({ clinicId: clinic.id }, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    const serialized = JSON.stringify(result.pack).toLowerCase();
+    assert.doesNotMatch(serialized, /qualidade m[eé]dica.{0,20}(boa|ruim|excelente|aprovad)|diagn[oó]stico|tratamento cl[ií]nico/);
+    assert.doesNotMatch(serialized, /service_role|supabase_|google_places_api_key|postgresql:\/\/|aiza|eyj/);
+    assert.equal(result.pack.disclaimer, SCORE_DISCLAIMER);
+  });
+});
+
 describe("buildCommercialTemplatePack: candidates and validation", () => {
   it("a not-yet-promoted candidate never produces copy, regardless of tier", async () => {
     const deps = buildDeps();

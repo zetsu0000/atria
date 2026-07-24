@@ -13,6 +13,7 @@ const ACTION_LABEL_PT: Record<CandidateReviewItem["suggestedAction"], string> = 
   blocked_directory: "Bloqueado — listagem de diretório",
   blocked_no_website: "Bloqueado — sem website",
   blocked_existing: "Bloqueado — já existe no sistema",
+  blocked_icp: "Bloqueado — perfil (ICP) não é foco do MVP",
 };
 
 function renderItem(item: CandidateReviewItem, index: number): string {
@@ -26,6 +27,9 @@ function renderItem(item: CandidateReviewItem, index: number): string {
   lines.push(`- **Website:** ${item.websiteUrl ?? "—"}`);
   lines.push(`- **Origem:** ${item.sourceType}${item.sourcePlaceId ? ` (place_id: ${item.sourcePlaceId})` : ""}`);
   lines.push(`- **Localização:** ${[item.city, item.state].filter(Boolean).join(", ") || "—"}`);
+  lines.push(
+    `- **ICP:** ${item.organizationType} — fit: ${item.icpFit} — decisão: ${item.decisionComplexity}`,
+  );
   if (item.promotedClinicId) lines.push(`- **Clínica promovida:** ${item.promotedClinicId}`);
   if (item.existingClinicId) {
     const matchLabel = item.existingClinicMatchReason === "normalized_website" ? "mesmo website" : "dedupe";

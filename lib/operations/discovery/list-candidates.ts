@@ -13,6 +13,8 @@ import type { ClinicRecord, ProspectCandidateRecord, RepoErrorReason } from "@/l
 import type { DiscoverySourceType } from "@/lib/discovery/types";
 import { normalizeWebsiteOrigin } from "@/lib/discovery/normalize";
 import { isDirectoryListing } from "@/lib/operations/prioritization/prioritize-prospects";
+import { classifyIcp, explainIcpReasonCode, extractGooglePlacesCategoryTypes } from "@/lib/operations/icp-classification/classify-icp";
+import type { IcpClassification } from "@/lib/operations/icp-classification/types";
 import type {
   CandidateReviewAction,
   CandidateReviewItem,
@@ -104,32 +106,38 @@ function extractSourcePlaceId(sourceAttribution: Record<string, unknown>): strin
 function classifyCandidate(
   candidate: ProspectCandidateRecord,
   existingClinicMatch: ExistingClinicMatch | null,
-): { blockers: string[]; suggestedAction: CandidateReviewAction } {
+): { blockers: string[]; suggestedAction: CandidateReviewAction; icp: IcpClassification } {
   const blockers: string[] = [];
+  const icp = classifyIcp({
+    name: candidate.rawName,
+    websiteUrl: candidate.websiteUrl,
+    normalizedWebsiteOrigin: candidate.normalizedWebsiteOrigin,
+    sourceCategoryTypes: extractGooglePlacesCategoryTypes(candidate.sourceAttribution),
+  });
 
   if (candidate.status === "promoted_to_clinic") {
     blockers.push(`Candidato já promovido para a clínica ${candidate.promotedClinicId ?? "desconhecida"}.`);
-    return { blockers, suggestedAction: "skip_duplicate" };
+    return { blockers, suggestedAction: "skip_duplicate", icp };
   }
 
   if (candidate.status === "duplicate") {
     blockers.push(`Candidato já marcado como duplicado.${candidate.reviewNotes ? ` Nota: ${candidate.reviewNotes}` : ""}`);
-    return { blockers, suggestedAction: "skip_duplicate" };
+    return { blockers, suggestedAction: "skip_duplicate", icp };
   }
 
   if (candidate.status === "rejected") {
     blockers.push(`Candidato já rejeitado anteriormente.${candidate.reviewNotes ? ` Nota: ${candidate.reviewNotes}` : ""}`);
-    return { blockers, suggestedAction: "blocked_existing" };
+    return { blockers, suggestedAction: "blocked_existing", icp };
   }
 
   if (!candidate.websiteUrl) {
     blockers.push("Nenhum website registrado para este candidato.");
-    return { blockers, suggestedAction: "blocked_no_website" };
+    return { blockers, suggestedAction: "blocked_no_website", icp };
   }
 
   if (isDirectoryListing(candidate.normalizedWebsiteOrigin)) {
     blockers.push("Website é uma listagem de diretório/agregador de terceiros, não o domínio próprio do candidato.");
-    return { blockers, suggestedAction: "blocked_directory" };
+    return { blockers, suggestedAction: "blocked_directory", icp };
   }
 
   if (existingClinicMatch) {
@@ -138,14 +146,28 @@ function classifyCandidate(
         ? `Já existe uma clínica com a mesma identidade (dedupe): ${existingClinicMatch.clinicId}.`
         : `Já existe uma clínica com o mesmo website (normalizado, http/https tratados como o mesmo site): ${existingClinicMatch.clinicId}.`;
     blockers.push(blocker);
-    return { blockers, suggestedAction: "blocked_existing" };
+    return { blockers, suggestedAction: "blocked_existing", icp };
+  }
+
+  // ICP (docs/technical/crawler-icp-classification.md), checked after
+  // every duplicate/existing-clinic signal above (those always take
+  // priority) but before the generic needs_review/promote fallback.
+  // "blocked" here only ever means wrong_audience — a directory listing
+  // was already handled above via the identical, shared detector.
+  if (icp.icpFit === "blocked" || icp.icpFit === "poor" || icp.icpFit === "future_enterprise") {
+    blockers.push(...icp.blockers.map(explainIcpReasonCode));
+    return { blockers, suggestedAction: "blocked_icp", icp };
+  }
+  if (icp.icpFit === "maybe") {
+    blockers.push(...icp.blockers.map(explainIcpReasonCode));
+    return { blockers, suggestedAction: "manual_review", icp };
   }
 
   if (candidate.status === "needs_review") {
-    return { blockers, suggestedAction: "manual_review" };
+    return { blockers, suggestedAction: "manual_review", icp };
   }
 
-  return { blockers, suggestedAction: "promote_candidate" };
+  return { blockers, suggestedAction: "promote_candidate", icp };
 }
 
 export async function listCandidatesForReview(
@@ -222,7 +244,7 @@ export async function listCandidatesForReview(
       }
     }
 
-    const { blockers, suggestedAction } = classifyCandidate(candidate, existingClinicMatch);
+    const { blockers, suggestedAction, icp } = classifyCandidate(candidate, existingClinicMatch);
 
     if (onlyPromotable && suggestedAction !== "promote_candidate") {
       continue;
@@ -245,6 +267,11 @@ export async function listCandidatesForReview(
       blockers,
       suggestedAction,
       createdAt: candidate.createdAt,
+      organizationType: icp.organizationType,
+      icpFit: icp.icpFit,
+      decisionComplexity: icp.decisionComplexity,
+      icpReasons: icp.reasons,
+      icpBlockers: icp.blockers,
     });
 
     if (items.length >= limit) break;

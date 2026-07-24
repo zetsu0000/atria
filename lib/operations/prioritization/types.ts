@@ -7,6 +7,7 @@
  * calls an external API, never creates or sends anything, never mutates
  * a single row anywhere.
  */
+import type { IcpClassification } from "@/lib/operations/icp-classification/types";
 
 export type PriorityTier = "high" | "medium" | "low" | "blocked";
 
@@ -33,6 +34,9 @@ export type PrioritizedProspect = {
   reasons: string[];
   blockers: string[];
   suggestedNextAction: SuggestedNextAction;
+
+  /** ICP (Ideal Customer Profile) classification — see docs/technical/crawler-icp-classification.md. Hospitals/franchises/chains/directory listings/wrong-audience businesses never outrank an equally-evidenced independent clinic merely because their website is more complete. */
+  icp: IcpClassification;
 
   /** Supporting facts surfaced for operator visibility — every reason/blocker traces back to one of these. */
   facts: {

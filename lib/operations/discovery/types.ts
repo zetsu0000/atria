@@ -1,4 +1,5 @@
 import type { CandidateStatus, DiscoverySourceType } from "@/lib/discovery/types";
+import type { IcpDecisionComplexity, IcpFit, IcpOrganizationType, IcpReasonCode } from "@/lib/operations/icp-classification/types";
 
 export type CandidateReviewStatusFilter = CandidateStatus | "all";
 
@@ -16,7 +17,9 @@ export type CandidateReviewAction =
   | "manual_review"
   | "blocked_directory"
   | "blocked_no_website"
-  | "blocked_existing";
+  | "blocked_existing"
+  /** ICP-driven block — hospital/franchise/chain/wrong-audience, or (non-directory) blocked ICP fit. See docs/technical/crawler-icp-classification.md. */
+  | "blocked_icp";
 
 export type CandidateReviewItem = {
   candidateId: string;
@@ -56,6 +59,13 @@ export type CandidateReviewItem = {
   blockers: string[];
   suggestedAction: CandidateReviewAction;
   createdAt: string;
+
+  /** ICP (Ideal Customer Profile) classification — see docs/technical/crawler-icp-classification.md. Always computed, even for candidates already blocked for another reason (duplicate/no-website/directory), for full operator visibility. */
+  organizationType: IcpOrganizationType;
+  icpFit: IcpFit;
+  decisionComplexity: IcpDecisionComplexity;
+  icpReasons: IcpReasonCode[];
+  icpBlockers: IcpReasonCode[];
 };
 
 export type CandidateReviewResult = {

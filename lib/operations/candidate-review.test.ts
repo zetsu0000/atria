@@ -243,6 +243,11 @@ describe("listCandidatesForReview", () => {
         "blockers",
         "suggestedAction",
         "createdAt",
+        "organizationType",
+        "icpFit",
+        "decisionComplexity",
+        "icpReasons",
+        "icpBlockers",
       ].sort(),
     );
     // Round-trips through JSON without losing shape.
@@ -634,6 +639,189 @@ describe("listCandidatesForReview: website-scheme-normalized duplicate detection
     assert.ok(item);
     assert.equal(item!.existingClinicId, exactClinic.value.id);
     assert.equal(item!.existingClinicMatchReason, "dedupe_key");
+  });
+});
+
+describe("listCandidatesForReview: ICP classification (docs/technical/crawler-icp-classification.md)", () => {
+  it("9. output includes all ICP fields for every candidate", async () => {
+    const deps = buildDeps();
+    await seedCandidate(deps, {
+      rawName: "Clínica ICP Fields Check",
+      dedupeKey: "icp-fields-1",
+      websiteUrl: "https://icpfieldscheck.example.com.br/",
+      normalizedWebsiteOrigin: "https://icpfieldscheck.example.com.br",
+    });
+
+    const result = await listCandidatesForReview({}, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    const item = result.result.items.find((i) => i.rawName === "Clínica ICP Fields Check");
+    assert.ok(item);
+    assert.equal(item!.organizationType, "independent_clinic");
+    assert.equal(item!.icpFit, "core");
+    assert.equal(item!.decisionComplexity, "owner_led");
+    assert.ok(item!.icpReasons.includes("likely_core_icp"));
+    assert.deepEqual(item!.icpBlockers, []);
+    assert.equal(item!.suggestedAction, "promote_candidate");
+  });
+
+  it("hospital/franchise/chain candidates get suggestedAction blocked_icp, never a clean promote_candidate", async () => {
+    const deps = buildDeps();
+    await seedCandidate(deps, {
+      rawName: "Hospital Santa Clara Dermatologia",
+      dedupeKey: "icp-hospital-1",
+      websiteUrl: "https://hospitalsantaclara.example.com.br/",
+      normalizedWebsiteOrigin: "https://hospitalsantaclara.example.com.br",
+    });
+    await seedCandidate(deps, {
+      rawName: "Rede Dermato Brasil - Franquia Curitiba",
+      dedupeKey: "icp-franchise-1",
+      websiteUrl: "https://redeDermatoBrasilFranquia.example.com.br/",
+      normalizedWebsiteOrigin: "https://redeDermatoBrasilFranquia.example.com.br",
+    });
+
+    const result = await listCandidatesForReview({}, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+
+    const hospital = result.result.items.find((i) => i.rawName.startsWith("Hospital Santa Clara"));
+    assert.ok(hospital);
+    assert.equal(hospital!.organizationType, "hospital");
+    assert.equal(hospital!.suggestedAction, "blocked_icp");
+    assert.notEqual(hospital!.suggestedAction, "promote_candidate");
+
+    const franchise = result.result.items.find((i) => i.rawName.startsWith("Rede Dermato Brasil"));
+    assert.ok(franchise);
+    assert.equal(franchise!.organizationType, "franchise_unit");
+    assert.equal(franchise!.suggestedAction, "blocked_icp");
+    assert.notEqual(franchise!.suggestedAction, "promote_candidate");
+  });
+
+  it("wrong-audience candidates get suggestedAction blocked_icp", async () => {
+    const deps = buildDeps();
+    await seedCandidate(deps, {
+      rawName: "Farmácia Popular Bem Estar",
+      dedupeKey: "icp-wrong-audience-1",
+      websiteUrl: "https://farmaciapopularbemestar.example.com.br/",
+      normalizedWebsiteOrigin: "https://farmaciapopularbemestar.example.com.br",
+    });
+
+    const result = await listCandidatesForReview({}, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    const item = result.result.items.find((i) => i.rawName === "Farmácia Popular Bem Estar");
+    assert.ok(item);
+    assert.equal(item!.organizationType, "wrong_audience");
+    assert.equal(item!.suggestedAction, "blocked_icp");
+  });
+
+  it("solo practitioner candidates get suggestedAction manual_review, not clean promote_candidate", async () => {
+    const deps = buildDeps();
+    await seedCandidate(deps, {
+      rawName: "Dra. Fernanda Lima - Dermatologista",
+      dedupeKey: "icp-solo-1",
+      websiteUrl: "https://fernandalimaderma.example.com.br/",
+      normalizedWebsiteOrigin: "https://fernandalimaderma.example.com.br",
+    });
+
+    const result = await listCandidatesForReview({}, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    const item = result.result.items.find((i) => i.rawName.startsWith("Dra. Fernanda Lima"));
+    assert.ok(item);
+    assert.equal(item!.organizationType, "solo_practitioner");
+    assert.equal(item!.suggestedAction, "manual_review");
+    assert.notEqual(item!.suggestedAction, "promote_candidate");
+  });
+
+  it("10. --only-promotable excludes hospital/franchise/directory/wrong-audience ICP-blocked candidates", async () => {
+    const deps = buildDeps();
+    await seedCandidate(deps, {
+      rawName: "Clínica Genuína Promovível",
+      dedupeKey: "icp-only-promotable-good-1",
+      websiteUrl: "https://genuinapromovivel.example.com.br/",
+      normalizedWebsiteOrigin: "https://genuinapromovivel.example.com.br",
+    });
+    await seedCandidate(deps, {
+      rawName: "Hospital Regional Oeste",
+      dedupeKey: "icp-only-promotable-hospital-1",
+      websiteUrl: "https://hospitalregionaloeste.example.com.br/",
+      normalizedWebsiteOrigin: "https://hospitalregionaloeste.example.com.br",
+    });
+    await seedCandidate(deps, {
+      rawName: "Farmácia Regional Oeste",
+      dedupeKey: "icp-only-promotable-pharmacy-1",
+      websiteUrl: "https://farmaciaregionaloeste.example.com.br/",
+      normalizedWebsiteOrigin: "https://farmaciaregionaloeste.example.com.br",
+    });
+
+    const result = await listCandidatesForReview({ onlyPromotable: true }, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.result.count, 1);
+    assert.equal(result.result.items[0]!.rawName, "Clínica Genuína Promovível");
+  });
+
+  it("duplicates/rejected/promoted still take priority over ICP — existing behavior unchanged", async () => {
+    const deps = buildDeps();
+    // A hospital-named candidate that is ALSO already rejected — rejected
+    // status must still win (blocked_existing), not blocked_icp, exactly
+    // as it did before ICP classification existed.
+    const rejectedHospital = await seedCandidate(deps, {
+      rawName: "Hospital Já Rejeitado",
+      dedupeKey: "icp-priority-rejected-1",
+      websiteUrl: "https://hospitaljarejeitado.example.com.br/",
+      normalizedWebsiteOrigin: "https://hospitaljarejeitado.example.com.br",
+    });
+    await deps.discoveryRepo.markCandidateRejected(rejectedHospital.id, "Fora do escopo.");
+
+    const result = await listCandidatesForReview({}, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    const item = result.result.items.find((i) => i.rawName === "Hospital Já Rejeitado");
+    assert.ok(item);
+    assert.equal(item!.suggestedAction, "blocked_existing");
+    assert.notEqual(item!.suggestedAction, "blocked_icp");
+    // ICP fields are still computed/surfaced for operator visibility, even
+    // though they don't drive the suggested action in this case.
+    assert.equal(item!.organizationType, "hospital");
+  });
+
+  it("16. JSON and Markdown output surface ICP fields stably", async () => {
+    const deps = buildDeps();
+    await seedCandidate(deps, {
+      rawName: "Hospital Render Check",
+      dedupeKey: "icp-render-check-1",
+      websiteUrl: "https://hospitalrendercheck.example.com.br/",
+      normalizedWebsiteOrigin: "https://hospitalrendercheck.example.com.br",
+    });
+
+    const result = await listCandidatesForReview({}, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+
+    const roundTripped = JSON.parse(JSON.stringify(result.result)) as CandidateReviewResult;
+    assert.deepEqual(roundTripped, result.result);
+
+    const markdown = renderCandidateListMarkdown(result.result);
+    assert.match(markdown, /\*\*ICP:\*\* hospital — fit: future_enterprise/);
+    assert.match(markdown, /Bloqueado — perfil \(ICP\) não é foco do MVP/);
+  });
+
+  it("18. required disclaimer is not applicable at this layer (no disclaimer field here) — confirms no medical-quality claim sneaks in instead", async () => {
+    const deps = buildDeps();
+    await seedCandidate(deps, {
+      rawName: "Hospital Disclaimer Check",
+      dedupeKey: "icp-disclaimer-check-1",
+      websiteUrl: "https://hospitaldisclaimercheck.example.com.br/",
+      normalizedWebsiteOrigin: "https://hospitaldisclaimercheck.example.com.br",
+    });
+
+    const result = await listCandidatesForReview({}, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    const serialized = JSON.stringify(result.result).toLowerCase();
+    assert.doesNotMatch(serialized, /qualidade m[eé]dica.{0,20}(boa|ruim|excelente|aprovad)|diagn[oó]stico|tratamento cl[ií]nico/);
   });
 });
 

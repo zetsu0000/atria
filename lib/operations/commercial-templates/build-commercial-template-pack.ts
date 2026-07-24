@@ -256,6 +256,15 @@ export async function buildCommercialTemplatePack(
   // copy must never be generated for one regardless of how the tier math
   // evolves elsewhere.
   const isDirectoryListing = prioritized.facts.isDirectoryListing;
+  // ICP (docs/technical/crawler-icp-classification.md): hospitals and
+  // clinic chains are classified "future_enterprise"; a single franchise
+  // unit is classified "poor" — neither is the MVP's target profile
+  // today, but neither is a hard-blocked wrong-audience business either.
+  // Checked explicitly, defense-in-depth on top of the heavy score
+  // penalty prioritizeClinic/prioritizeCandidate already applies, so a
+  // strong technical score can never push either into MVP-ready copy —
+  // matching how directory listings are already checked explicitly above.
+  const isFutureEnterpriseOrPoorIcp = prioritized.icp.icpFit === "future_enterprise" || prioritized.icp.icpFit === "poor";
 
   let whatsapp: CommercialCopySection;
   let email: CommercialCopySection;
@@ -271,6 +280,15 @@ export async function buildCommercialTemplatePack(
     whatsapp = unavailableCopy("whatsapp_manual", reason);
     email = unavailableCopy("email", reason);
     blockedReason = reason;
+  } else if (isFutureEnterpriseOrPoorIcp) {
+    const reason =
+      prioritized.icp.icpFit === "future_enterprise"
+        ? "Prospect classificado como possível oportunidade enterprise futura (rede/hospital/grande instituição) — fora do escopo do MVP atual da Atria. Nenhuma copy de outreach MVP é gerada para este perfil."
+        : "Prospect classificado como unidade de franquia/rede — decisão provavelmente não é local/independente, fora do perfil MVP hoje. Nenhuma copy de outreach MVP é gerada para este perfil.";
+    whatsapp = unavailableCopy("whatsapp_manual", reason);
+    email = unavailableCopy("email", reason);
+    blockedReason = null;
+    warnings.push(reason);
   } else if (prioritized.priorityTier === "blocked") {
     const reason = prioritized.blockers.length > 0 ? prioritized.blockers.join(" ") : "Prioridade bloqueada.";
     whatsapp = unavailableCopy("whatsapp_manual", "Prospect bloqueado — nenhuma copy externa é gerada. Ver blockedReason.");

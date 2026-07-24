@@ -31,6 +31,9 @@ function renderItem(item: PrioritizedProspect, index: number): string {
   lines.push(`- **Prioridade:** ${TIER_LABEL_PT[item.priorityTier]} (score ${item.priorityScore})`);
   lines.push(`- **Próxima ação sugerida:** ${ACTION_LABEL_PT[item.suggestedNextAction]}`);
   lines.push(`- **Website:** ${item.websiteUrl ?? "—"}`);
+  lines.push(
+    `- **ICP:** ${item.icp.organizationType} — fit: ${item.icp.icpFit} — decisão: ${item.icp.decisionComplexity}`,
+  );
   lines.push("");
   if (item.reasons.length > 0) {
     lines.push("**Motivos:**");

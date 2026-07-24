@@ -23,7 +23,25 @@ import type { ScoreRepository } from "@/lib/operations/repositories/score-reposi
 import type { HumanReviewRepository } from "@/lib/operations/repositories/human-review-repository";
 import type { ManualOutreachLogRepository } from "@/lib/operations/repositories/manual-outreach-log-repository";
 import type { ClinicRecord, ProspectCandidateRecord } from "@/lib/operations/repositories/types";
+import { hostnameOf, isDirectoryListing } from "@/lib/discovery/directory-listing";
+import {
+  classifyIcp,
+  extractGooglePlacesCategoryTypes,
+  explainIcpReasonCode,
+} from "@/lib/operations/icp-classification/classify-icp";
+import type { IcpClassification } from "@/lib/operations/icp-classification/types";
 import type { PriorityTier, PrioritizedProspect, PrioritizationResult, SuggestedNextAction } from "./types";
+
+/**
+ * Re-exported for backward compatibility — every existing importer
+ * (scripts/crawler/recalculate-score.ts,
+ * lib/operations/discovery/list-candidates.ts) keeps working unchanged.
+ * The real implementation now lives in lib/discovery/directory-listing.ts
+ * (a lower-level module with no dependency on lib/operations/*), so this
+ * module and lib/operations/icp-classification/classify-icp.ts can both
+ * import it without a circular dependency between them.
+ */
+export { isDirectoryListing };
 
 export type PrioritizeProspectsInput = {
   limit?: number;
@@ -46,44 +64,6 @@ export const DEFAULT_PRIORITIZATION_LIMIT = 20;
 const RECENT_CONTACT_WINDOW_DAYS = 30;
 const REAL_CONTACT_EVENT_TYPES = new Set(["manual_send_logged", "response_logged", "follow_up_logged", "no_response_logged"]);
 
-/**
- * Small, explicit allowlist of known third-party directory/aggregator
- * domains — not an exhaustive detector, just the same manual judgment
- * call documented in docs/operations/crawler-operator-runbook.md ("is
- * website_url a directory listing, not the clinic's own domain?") made
- * mechanical for a short, known list. Anything not on this list is
- * treated as the prospect's own domain.
- */
-const KNOWN_DIRECTORY_LISTING_ORIGINS = [
-  "doctoralia.com.br",
-  "doctoralia.com",
-  "boaconsulta.com",
-  "clinicorp.com",
-  "guiamedico.com.br",
-];
-
-function hostnameOf(originOrUrl: string | null): string | null {
-  if (!originOrUrl) return null;
-  try {
-    return new URL(originOrUrl).hostname.replace(/^www\./, "").toLowerCase();
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Exported so other read-only modules (e.g.
- * scripts/crawler/recalculate-score.ts, which needs this exact same
- * signal to pass `isDirectoryListing` into the score calibration —
- * lib/score/calculate.ts) can reuse the identical detector rather than
- * duplicating the domain list in a second place.
- */
-export function isDirectoryListing(normalizedWebsiteOrigin: string | null): boolean {
-  const host = hostnameOf(normalizedWebsiteOrigin);
-  if (!host) return false;
-  return KNOWN_DIRECTORY_LISTING_ORIGINS.some((known) => host === known || host.endsWith(`.${known}`));
-}
-
 function daysBetween(a: Date, b: Date): number {
   return Math.abs(a.getTime() - b.getTime()) / (1000 * 60 * 60 * 24);
 }
@@ -93,6 +73,49 @@ function clampTier(score: number): PriorityTier {
   if (score >= 40) return "medium";
   if (score >= 15) return "low";
   return "blocked";
+}
+
+/**
+ * Applies the ICP classification's effect on priority score, appending
+ * operator-facing reason/blocker text alongside the existing ones. Never
+ * double-penalizes a directory listing — that case is already fully
+ * scored/blocked by the pre-existing directoryListing branch in
+ * `prioritizeClinic`/`prioritizeCandidate` above this call, since the ICP
+ * classifier reuses the exact same `isDirectoryListing` detector.
+ * "no_own_website" is likewise skipped here — already fully handled
+ * (penalty + blocker text) by the pre-existing hasOwnWebsite branch.
+ *
+ * Magnitudes are chosen so a hospital/franchise/chain with maximal
+ * technical evidence still ranks a full tier or more below an
+ * equally-evidenced independent clinic (see
+ * docs/technical/crawler-icp-classification.md), without a hard
+ * tier-blocking override — only `icpFit: "blocked"` (directory listing,
+ * wrong-audience) hard-overrides the tier, via the caller's `hardBlocked`
+ * check.
+ */
+function applyIcpScoring(icp: IcpClassification, score: number, reasons: string[], blockers: string[]): number {
+  if (icp.organizationType === "directory_listing") {
+    return score;
+  }
+  for (const code of icp.blockers) {
+    if (code === "no_own_website") continue;
+    blockers.push(explainIcpReasonCode(code));
+  }
+  for (const code of icp.reasons) {
+    reasons.push(explainIcpReasonCode(code));
+  }
+  switch (icp.icpFit) {
+    case "maybe":
+      return score - 15;
+    case "poor":
+      return score - 35;
+    case "future_enterprise":
+      return score - 40;
+    case "blocked":
+      return score - 60;
+    case "core":
+      return score;
+  }
 }
 
 /**
@@ -118,6 +141,13 @@ export async function prioritizeClinic(
 
   const hasOwnWebsite = Boolean(clinic.websiteUrl);
   const directoryListing = isDirectoryListing(clinic.normalizedWebsiteOrigin);
+  const icp = classifyIcp({
+    name: clinic.displayName,
+    websiteUrl: clinic.websiteUrl,
+    normalizedWebsiteOrigin: clinic.normalizedWebsiteOrigin,
+    sourceCategoryTypes: extractGooglePlacesCategoryTypes(clinic.sourceAttribution),
+  });
+  score = applyIcpScoring(icp, score, reasons, blockers);
   if (hasOwnWebsite && !directoryListing) {
     score += 10;
     reasons.push("Possui site próprio (não é listagem de diretório de terceiros).");
@@ -235,7 +265,7 @@ export async function prioritizeClinic(
     blockers.push(`Já contatada manualmente nos últimos ${RECENT_CONTACT_WINDOW_DAYS} dias — evitar contato duplicado.`);
   }
 
-  const hardBlocked = clinic.doNotContact || latestDecision?.decision === "rejected";
+  const hardBlocked = clinic.doNotContact || latestDecision?.decision === "rejected" || icp.icpFit === "blocked";
   const tier: PriorityTier = hardBlocked ? "blocked" : clampTier(score);
 
   let suggestedNextAction: SuggestedNextAction;
@@ -262,6 +292,7 @@ export async function prioritizeClinic(
     reasons,
     blockers,
     suggestedNextAction,
+    icp,
     facts: {
       hasOwnWebsite,
       isDirectoryListing: directoryListing,
@@ -287,6 +318,13 @@ export function prioritizeCandidate(candidate: ProspectCandidateRecord): Priorit
 
   const hasOwnWebsite = Boolean(candidate.websiteUrl);
   const directoryListing = isDirectoryListing(candidate.normalizedWebsiteOrigin);
+  const icp = classifyIcp({
+    name: candidate.rawName,
+    websiteUrl: candidate.websiteUrl,
+    normalizedWebsiteOrigin: candidate.normalizedWebsiteOrigin,
+    sourceCategoryTypes: extractGooglePlacesCategoryTypes(candidate.sourceAttribution),
+  });
+  score = applyIcpScoring(icp, score, reasons, blockers);
   if (hasOwnWebsite && !directoryListing) {
     score += 10;
     reasons.push("Possui website próprio candidato (ainda não crawleado).");
@@ -306,7 +344,7 @@ export function prioritizeCandidate(candidate: ProspectCandidateRecord): Priorit
     blockers.push("Candidato sinalizado como needs_review pela fonte de descoberta.");
   }
 
-  const hardBlocked = candidate.status === "rejected";
+  const hardBlocked = candidate.status === "rejected" || icp.icpFit === "blocked";
   const tier: PriorityTier = hardBlocked ? "blocked" : clampTier(score);
   const suggestedNextAction: SuggestedNextAction = hardBlocked || directoryListing ? "skip" : "needs_manual_research";
 
@@ -321,6 +359,7 @@ export function prioritizeCandidate(candidate: ProspectCandidateRecord): Priorit
     reasons,
     blockers,
     suggestedNextAction,
+    icp,
     facts: {
       hasOwnWebsite,
       isDirectoryListing: directoryListing,

@@ -59,7 +59,8 @@ Everything right of it is, and must remain, a human action outside this system.
 | Operational report | Ready | `crawler:report`. |
 | Human review pack | Ready | `crawler:review-pack`. |
 | Prospect prioritization | Ready | Read-only ranking; never crawls, never calls an external API, never mutates data. Tier thresholds are a first calibration, not empirically tuned. (`docs/technical/crawler-prospect-prioritization.md`) |
-| Commercial templates by tier | Ready with manual review | Copy generated only for `high`/`medium` tiers; withheld for `low`/`blocked`/`needs_changes`/no-score. Templates are fixed per tier, not yet tuned against real outreach outcomes. |
+| ICP classification | Ready with manual review | Pure, deterministic classifier (hospital/franchise/chain/directory/wrong-audience businesses flagged, never a clean promote) integrated into candidate review, prioritization, and commercial templates. Name/category-keyword heuristic — conservative by design, not exhaustive. (`docs/technical/crawler-icp-classification.md`) |
+| Commercial templates by tier | Ready with manual review | Copy generated only for `high`/`medium` tiers; withheld for `low`/`blocked`/`needs_changes`/no-score/blocked or future_enterprise ICP. Templates are fixed per tier, not yet tuned against real outreach outcomes. |
 | Human review decision / review queue | Ready | Append-only `human_review_decisions`; no update/delete method exists. Latest decision always wins. |
 | Approval gate | Ready (currently unused by any sender, because no sender exists) | `assertOutreachApprovedForSend` checks clinic/message existence, do-not-contact, sendable status, and latest decision = `approved`. |
 | Manual outreach-ready packet | Ready with manual review | Copy is always the verbatim already-approved draft — never freshly generated at packet time. |

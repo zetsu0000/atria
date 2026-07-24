@@ -323,6 +323,98 @@ describe("prioritizeProspects: directory listings", () => {
   });
 });
 
+describe("prioritizeProspects: ICP classification (docs/technical/crawler-icp-classification.md)", () => {
+  it("11. a hospital, franchise unit, and wrong-audience business are all lowered/blocked in priority, never ranking as high/core", async () => {
+    const deps = buildDeps();
+    const hospital = await seedClinic(deps, "icp-hospital-clinic", {
+      displayName: "Hospital Santa Vida",
+      websiteUrl: "https://hospitalsantavida.example.com.br/",
+      normalizedWebsiteOrigin: "https://hospitalsantavida.example.com.br",
+    });
+    const franchise = await seedClinic(deps, "icp-franchise-clinic", {
+      displayName: "Rede Dermato Brasil - Franquia Curitiba",
+      websiteUrl: "https://redeDermatoBrasilFranquia.example.com.br/",
+      normalizedWebsiteOrigin: "https://redeDermatoBrasilFranquia.example.com.br",
+    });
+    const wrongAudience = await seedClinic(deps, "icp-wrong-audience-clinic", {
+      displayName: "Farmácia Popular Bem Estar",
+      websiteUrl: "https://farmaciapopularbemestar.example.com.br/",
+      normalizedWebsiteOrigin: "https://farmaciapopularbemestar.example.com.br",
+    });
+
+    const result = await prioritizeProspects({}, deps);
+
+    const hospitalItem = result.items.find((i) => i.id === hospital.id)!;
+    assert.equal(hospitalItem.icp.organizationType, "hospital");
+    assert.notEqual(hospitalItem.priorityTier, "high");
+
+    const franchiseItem = result.items.find((i) => i.id === franchise.id)!;
+    assert.equal(franchiseItem.icp.organizationType, "franchise_unit");
+    assert.notEqual(franchiseItem.priorityTier, "high");
+
+    const wrongAudienceItem = result.items.find((i) => i.id === wrongAudience.id)!;
+    assert.equal(wrongAudienceItem.icp.organizationType, "wrong_audience");
+    assert.equal(wrongAudienceItem.priorityTier, "blocked");
+    assert.equal(wrongAudienceItem.suggestedNextAction, "skip");
+  });
+
+  it("12. a wrong-audience business with maximal technical evidence still ranks blocked — a high technical score never overrides blocked ICP", async () => {
+    const deps = buildDeps();
+    const clinic = await seedClinic(deps, "icp-blocked-high-score-clinic", {
+      displayName: "Farmácia Popular Bem Estar",
+      websiteUrl: "https://farmaciapopularbemestar2.example.com.br/",
+      normalizedWebsiteOrigin: "https://farmaciapopularbemestar2.example.com.br",
+    });
+    const crawlJob = await seedCrawlJob(deps, clinic.id, { status: "completed" });
+    await seedScreenshot(deps, crawlJob.id);
+    await seedScore(deps, clinic.id, 70);
+    await seedContact(deps, clinic.id);
+    await seedDecision(deps, clinic.id, "approved");
+
+    const result = await prioritizeProspects({}, deps);
+    const item = result.items.find((i) => i.id === clinic.id)!;
+    assert.equal(item.icp.icpFit, "blocked");
+    // Every non-ICP signal here is maximally favorable — proves the
+    // blocked ICP hard-override, not just a numeric penalty, is what
+    // keeps this out of high/medium.
+    assert.equal(item.priorityTier, "blocked");
+    assert.equal(item.suggestedNextAction, "skip");
+  });
+
+  it("a hospital/franchise with maximal technical evidence still ranks a full tier or more below an equally-evidenced independent clinic — never outranks merely for a better website", async () => {
+    const deps = buildDeps();
+    const hospital = await seedClinic(deps, "icp-hospital-vs-independent", {
+      displayName: "Hospital Grande Porte",
+      websiteUrl: "https://hospitalgrandeporte.example.com.br/",
+      normalizedWebsiteOrigin: "https://hospitalgrandeporte.example.com.br",
+    });
+    const hospitalCrawl = await seedCrawlJob(deps, hospital.id, { status: "completed" });
+    await seedScreenshot(deps, hospitalCrawl.id);
+    await seedScore(deps, hospital.id, 70);
+    await seedContact(deps, hospital.id);
+    await seedDecision(deps, hospital.id, "approved");
+
+    const independent = await seedClinic(deps, "icp-independent-vs-hospital", {
+      displayName: "Clínica Independente Exemplo",
+      websiteUrl: "https://clinicaindependenteexemplo.example.com.br/",
+      normalizedWebsiteOrigin: "https://clinicaindependenteexemplo.example.com.br",
+    });
+    const independentCrawl = await seedCrawlJob(deps, independent.id, { status: "completed" });
+    await seedScreenshot(deps, independentCrawl.id);
+    await seedScore(deps, independent.id, 70);
+    await seedContact(deps, independent.id);
+    await seedDecision(deps, independent.id, "approved");
+
+    const result = await prioritizeProspects({}, deps);
+    const hospitalItem = result.items.find((i) => i.id === hospital.id)!;
+    const independentItem = result.items.find((i) => i.id === independent.id)!;
+    assert.ok(
+      hospitalItem.priorityScore < independentItem.priorityScore,
+      "an equally-evidenced hospital must not outrank an equally-evidenced independent clinic",
+    );
+  });
+});
+
 describe("prioritizeProspects: production is refused", () => {
   it("9. the shared repository-selection gate refuses production regardless of --target", () => {
     const env: LeadCaptureEnv = {
@@ -414,7 +506,7 @@ describe("prioritizeProspects: deterministic ordering and stable shapes", () => 
     const item = result.items[0]!;
     assert.deepEqual(
       Object.keys(item).sort(),
-      ["blockers", "displayName", "facts", "id", "kind", "normalizedWebsiteOrigin", "priorityScore", "priorityTier", "reasons", "suggestedNextAction", "websiteUrl"].sort(),
+      ["blockers", "displayName", "facts", "icp", "id", "kind", "normalizedWebsiteOrigin", "priorityScore", "priorityTier", "reasons", "suggestedNextAction", "websiteUrl"].sort(),
     );
   });
 
