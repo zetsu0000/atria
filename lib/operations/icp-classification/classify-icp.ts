@@ -20,6 +20,7 @@
  * and rationale.
  */
 import { normalizeClinicName } from "@/lib/discovery/normalize";
+import { isSocialProfileWebsite } from "@/lib/discovery/social-profile-website";
 import { isDirectoryListing } from "@/lib/operations/prioritization/prioritize-prospects";
 import type { IcpClassification, IcpDecisionComplexity, IcpFit, IcpOrganizationType, IcpReasonCode } from "./types";
 
@@ -148,6 +149,17 @@ export function classifyIcp(input: ClassifyIcpInput): IcpClassification {
     return classification("directory_listing", "blocked", "unknown");
   }
 
+  // 1b. Social/profile/messaging website (Instagram, Facebook, WhatsApp,
+  // link-in-bio, etc.) — not a directory (a different kind of "not the
+  // clinic's real site"), and not necessarily a bad organizationType by
+  // name (a real independent clinic can still only have an Instagram
+  // page) — but it caps icpFit at "maybe" below, since there is no real
+  // own domain to crawl/screenshot/modernize. Never makes an
+  // already-worse classification (hospital/wrong_audience/chain) look
+  // better — those return their own fixed icpFit before this matters.
+  const isSocialProfile = isSocialProfileWebsite(input.normalizedWebsiteOrigin);
+  if (isSocialProfile) blockers.push("social_profile_website");
+
   const normalizedName = normalizeClinicName(input.name);
   if (!normalizedName) {
     blockers.push("unclear_icp");
@@ -208,11 +220,16 @@ export function classifyIcp(input: ClassifyIcpInput): IcpClassification {
   }
 
   // 6. Default: independent clinic — the Atria MVP's preferred profile.
-  // Only "core" fit when it also has its own (non-directory) website;
-  // otherwise "maybe", since "own website" is part of the ICP definition
-  // itself, not just a bonus.
+  // Only "core" fit when it also has its own (non-directory,
+  // non-social-profile) website; otherwise "maybe", since "own website"
+  // is part of the ICP definition itself, not just a bonus. A social
+  // profile as the primary website_url never earns "core", even when the
+  // name reads as a genuine independent clinic (see
+  // docs/technical/crawler-social-profile-website-classification.md —
+  // found in crawler-single-prospect-operator-run-v3-icp.md).
   reasons.push("likely_core_icp");
-  return classification("independent_clinic", hasWebsite ? "core" : "maybe", "owner_led");
+  const icpFit: IcpFit = isSocialProfile ? "maybe" : hasWebsite ? "core" : "maybe";
+  return classification("independent_clinic", icpFit, "owner_led");
 }
 
 const REASON_TEXT: Record<IcpReasonCode, string> = {
@@ -222,6 +239,8 @@ const REASON_TEXT: Record<IcpReasonCode, string> = {
   directory_listing: "Website é uma listagem de diretório de terceiros, não o domínio próprio.",
   wrong_audience: "Sinais de que este não é um negócio de clínica (ex.: farmácia, laboratório, curso, loja de equipamentos).",
   no_own_website: "Nenhum website próprio registrado.",
+  social_profile_website:
+    "O website informado é um perfil de rede social/mensageria (ex.: Instagram, Facebook, WhatsApp, link-in-bio), não um domínio próprio da clínica.",
   duplicate_existing: "Já existe um registro equivalente no sistema.",
   unclear_icp: "Não foi possível classificar o ICP com o nome disponível.",
   likely_core_icp: "Nome sugere clínica independente — perfil preferencial do MVP da Atria.",

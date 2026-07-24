@@ -153,6 +153,60 @@ describe("classifyIcp (docs/technical/crawler-icp-classification.md)", () => {
     assert.ok(!centroMedico.blockers.includes("franchise_or_chain"));
   });
 
+  it("regression (crawler-single-prospect-operator-run-v3-icp.md): an Instagram profile as the primary website_url never earns 'core', even when the name reads as a genuine independent clinic (Lumina Pelle)", () => {
+    const result = classifyIcp({
+      name: "Clínica Dermatológica e Nutrição Lumina Pelle",
+      websiteUrl: "https://www.instagram.com/luminapelle/",
+      normalizedWebsiteOrigin: "https://www.instagram.com",
+    });
+    assert.equal(result.organizationType, "independent_clinic");
+    assert.equal(result.icpFit, "maybe");
+    assert.notEqual(result.icpFit, "core");
+    assert.ok(result.blockers.includes("social_profile_website"));
+  });
+
+  it("a Facebook profile as the primary website_url is likewise capped at 'maybe'", () => {
+    const result = classifyIcp({
+      name: "Clínica Sorriso Facebook",
+      websiteUrl: "https://www.facebook.com/clinicasorriso",
+      normalizedWebsiteOrigin: "https://www.facebook.com",
+    });
+    assert.equal(result.icpFit, "maybe");
+    assert.ok(result.blockers.includes("social_profile_website"));
+  });
+
+  it("a WhatsApp link (wa.me) as the primary website_url is likewise capped at 'maybe'", () => {
+    const result = classifyIcp({
+      name: "Clínica Contato WhatsApp",
+      websiteUrl: "https://wa.me/5511999999999",
+      normalizedWebsiteOrigin: "https://wa.me",
+    });
+    assert.equal(result.icpFit, "maybe");
+    assert.ok(result.blockers.includes("social_profile_website"));
+  });
+
+  it("a real own clinic domain remains 'core' — no social_profile_website blocker", () => {
+    const result = classifyIcp({
+      name: "Clínica Dra. Natália Segatti",
+      websiteUrl: "http://nataliasegatti.com.br/",
+      normalizedWebsiteOrigin: "https://nataliasegatti.com.br",
+    });
+    assert.equal(result.icpFit, "core");
+    assert.ok(!result.blockers.includes("social_profile_website"));
+  });
+
+  it("a hospital/wrong-audience classification is not weakened by also having a social-profile website — the worse classification still wins", () => {
+    const hospital = classifyIcp({
+      name: "Hospital Santa Vida",
+      websiteUrl: "https://www.instagram.com/hospitalsantavida/",
+      normalizedWebsiteOrigin: "https://www.instagram.com",
+    });
+    assert.equal(hospital.organizationType, "hospital");
+    assert.equal(hospital.icpFit, "future_enterprise");
+    assert.ok(hospital.blockers.includes("social_profile_website"));
+    assert.ok(hospital.blockers.includes("hospital_or_large_institution"));
+  });
+
   it("a strong 'franquia' signal alone is sufficient (no second weak signal needed)", () => {
     const result = classifyIcp({
       name: "Clínica Sorriso Franquia",
@@ -200,6 +254,7 @@ describe("classifyIcp (docs/technical/crawler-icp-classification.md)", () => {
       "directory_listing",
       "wrong_audience",
       "no_own_website",
+      "social_profile_website",
       "duplicate_existing",
       "unclear_icp",
       "likely_core_icp",
@@ -218,6 +273,7 @@ describe("classifyIcp (docs/technical/crawler-icp-classification.md)", () => {
       "directory_listing",
       "wrong_audience",
       "no_own_website",
+      "social_profile_website",
       "duplicate_existing",
       "unclear_icp",
       "likely_core_icp",

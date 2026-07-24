@@ -19,7 +19,9 @@ export type CandidateReviewAction =
   | "blocked_no_website"
   | "blocked_existing"
   /** ICP-driven block — hospital/franchise/chain/wrong-audience, or (non-directory) blocked ICP fit. See docs/technical/crawler-icp-classification.md. */
-  | "blocked_icp";
+  | "blocked_icp"
+  /** website_url is a social-media/link-in-bio/messaging profile (Instagram, Facebook, WhatsApp, Linktree, etc.), not a real own domain — distinct from "blocked_no_website" (no URL at all) and "blocked_directory" (a third-party clinic directory). See docs/technical/crawler-social-profile-website-classification.md. */
+  | "blocked_no_own_website";
 
 export type CandidateReviewItem = {
   candidateId: string;

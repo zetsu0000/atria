@@ -48,17 +48,25 @@ type IcpDecisionComplexity = "owner_led" | "local_manager" | "corporate" | "unkn
 type IcpReasonCode =
   | "hospital_or_large_institution" | "franchise_or_chain"
   | "directory_listing" | "wrong_audience" | "no_own_website"
+  | "social_profile_website"
   | "duplicate_existing" | "unclear_icp" | "likely_core_icp"
   | "needs_manual_review";
 ```
+
+`social_profile_website` (Instagram/Facebook/WhatsApp/link-in-bio as the
+primary `website_url`) was added in
+`docs/technical/crawler-social-profile-website-classification.md` — it
+caps `independent_clinic`/`solo_practitioner` at `icpFit: "maybe"`, never
+`"core"`, without changing what organizationType a name-based heuristic
+would otherwise produce.
 
 `classifyIcp()` (`lib/operations/icp-classification/classify-icp.ts`) maps
 `organizationType` → `icpFit` → `decisionComplexity` as follows:
 
 | organizationType | icpFit | decisionComplexity |
 |---|---|---|
-| `independent_clinic` (has own, non-directory website) | `core` | `owner_led` |
-| `independent_clinic` (no website yet) | `maybe` | `owner_led` |
+| `independent_clinic` (has own, non-directory, non-social-profile website) | `core` | `owner_led` |
+| `independent_clinic` (no website, or only a social-profile website) | `maybe` | `owner_led` |
 | `solo_practitioner` | `maybe` | `owner_led` |
 | `franchise_unit` | `poor` | `local_manager` |
 | `clinic_chain` | `future_enterprise` | `corporate` |
@@ -231,6 +239,11 @@ Confirmed against real data:
 
 ## Limitations
 
+- **Fixed (2026-07-24):** a social-media/messaging profile (e.g.
+  Instagram) as the primary `website_url` was not distinguished from a
+  real own domain — found in `crawler-single-prospect-operator-run-v3-icp.md`
+  ("Lumina Pelle"). See
+  `docs/technical/crawler-social-profile-website-classification.md`.
 - **A real false positive was found and fixed during this task's own
   staging validation**: "Clinica Derma Line" (a genuine dermatology/
   aesthetic clinic that also sells skincare products at retail) is

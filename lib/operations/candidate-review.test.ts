@@ -825,6 +825,209 @@ describe("listCandidatesForReview: ICP classification (docs/technical/crawler-ic
   });
 });
 
+describe("listCandidatesForReview: social-profile website classification (docs/technical/crawler-social-profile-website-classification.md)", () => {
+  it("1/2. an Instagram or Facebook website_url is never treated as an own website — suggestedAction is blocked_no_own_website, not promote_candidate", async () => {
+    const deps = buildDeps();
+    await seedCandidate(deps, {
+      rawName: "Clínica Dermatológica e Nutrição Lumina Pelle",
+      dedupeKey: "social-instagram-1",
+      websiteUrl: "https://www.instagram.com/luminapelle/",
+      normalizedWebsiteOrigin: "https://www.instagram.com",
+    });
+    await seedCandidate(deps, {
+      rawName: "Clínica Sorriso Facebook",
+      dedupeKey: "social-facebook-1",
+      websiteUrl: "https://www.facebook.com/clinicasorriso",
+      normalizedWebsiteOrigin: "https://www.facebook.com",
+    });
+
+    const result = await listCandidatesForReview({}, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+
+    const instagramItem = result.result.items.find((i) => i.rawName.startsWith("Clínica Dermatológica"));
+    assert.ok(instagramItem);
+    assert.equal(instagramItem!.suggestedAction, "blocked_no_own_website");
+    assert.notEqual(instagramItem!.suggestedAction, "promote_candidate");
+    assert.equal(instagramItem!.icpFit, "maybe");
+
+    const facebookItem = result.result.items.find((i) => i.rawName === "Clínica Sorriso Facebook");
+    assert.ok(facebookItem);
+    assert.equal(facebookItem!.suggestedAction, "blocked_no_own_website");
+  });
+
+  it("4. a wa.me/api.whatsapp.com website_url is never treated as an own website", async () => {
+    const deps = buildDeps();
+    await seedCandidate(deps, {
+      rawName: "Clínica Contato WhatsApp",
+      dedupeKey: "social-whatsapp-1",
+      websiteUrl: "https://wa.me/5511999999999",
+      normalizedWebsiteOrigin: "https://wa.me",
+    });
+
+    const result = await listCandidatesForReview({}, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    const item = result.result.items.find((i) => i.rawName === "Clínica Contato WhatsApp");
+    assert.ok(item);
+    assert.equal(item!.suggestedAction, "blocked_no_own_website");
+  });
+
+  it("5. a real own clinic domain remains eligible for promote_candidate", async () => {
+    const deps = buildDeps();
+    await seedCandidate(deps, {
+      rawName: "Clínica Dra. Natália Segatti",
+      dedupeKey: "social-own-domain-1",
+      websiteUrl: "http://nataliasegatti.example.com.br/",
+      normalizedWebsiteOrigin: "https://nataliasegatti.example.com.br",
+    });
+
+    const result = await listCandidatesForReview({}, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    const item = result.result.items.find((i) => i.rawName === "Clínica Dra. Natália Segatti");
+    assert.ok(item);
+    assert.equal(item!.suggestedAction, "promote_candidate");
+    assert.equal(item!.icpFit, "core");
+  });
+
+  it("7. output includes a reason explaining the social-profile website in blockers", async () => {
+    const deps = buildDeps();
+    await seedCandidate(deps, {
+      rawName: "Clínica Só Instagram",
+      dedupeKey: "social-reason-check-1",
+      websiteUrl: "https://www.instagram.com/soinstagram/",
+      normalizedWebsiteOrigin: "https://www.instagram.com",
+    });
+
+    const result = await listCandidatesForReview({}, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    const item = result.result.items.find((i) => i.rawName === "Clínica Só Instagram");
+    assert.ok(item);
+    assert.ok(item!.blockers.some((b) => /perfil de rede social/i.test(b)));
+    assert.ok(item!.icpBlockers.includes("social_profile_website"));
+  });
+
+  it("8. --only-promotable excludes a social-profile-website candidate", async () => {
+    const deps = buildDeps();
+    await seedCandidate(deps, {
+      rawName: "Clínica Só Instagram Promotable Check",
+      dedupeKey: "social-only-promotable-1",
+      websiteUrl: "https://www.instagram.com/soinstagrampromo/",
+      normalizedWebsiteOrigin: "https://www.instagram.com",
+    });
+    await seedCandidate(deps, {
+      rawName: "Clínica Domínio Próprio Real",
+      dedupeKey: "social-only-promotable-2",
+      websiteUrl: "https://dominioproprioreal.example.com.br/",
+      normalizedWebsiteOrigin: "https://dominioproprioreal.example.com.br",
+    });
+
+    const result = await listCandidatesForReview({ onlyPromotable: true }, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.result.count, 1);
+    assert.equal(result.result.items[0]!.rawName, "Clínica Domínio Próprio Real");
+  });
+
+  it("12. directory-listing behavior is unchanged — a real directory (Doctoralia) still gets blocked_directory, not blocked_no_own_website", async () => {
+    const deps = buildDeps();
+    await seedCandidate(deps, {
+      rawName: "Dra. Fulana - Doctoralia",
+      dedupeKey: "social-directory-unchanged-1",
+      websiteUrl: "https://www.doctoralia.com.br/dra-fulana",
+      normalizedWebsiteOrigin: "https://www.doctoralia.com.br",
+    });
+
+    const result = await listCandidatesForReview({}, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    const item = result.result.items.find((i) => i.rawName === "Dra. Fulana - Doctoralia");
+    assert.ok(item);
+    assert.equal(item!.suggestedAction, "blocked_directory");
+    assert.notEqual(item!.suggestedAction, "blocked_no_own_website");
+  });
+
+  it("13. duplicate/existing-clinic behavior still takes priority over social-profile-website classification", async () => {
+    const deps = buildDeps();
+    const candidate = await seedCandidate(deps, {
+      rawName: "Clínica Instagram Já Rejeitada",
+      dedupeKey: "social-priority-rejected-1",
+      websiteUrl: "https://www.instagram.com/jarejeitada/",
+      normalizedWebsiteOrigin: "https://www.instagram.com",
+    });
+    await deps.discoveryRepo.markCandidateRejected(candidate.id, "Fora do escopo.");
+
+    const result = await listCandidatesForReview({}, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    const item = result.result.items.find((i) => i.rawName === "Clínica Instagram Já Rejeitada");
+    assert.ok(item);
+    assert.equal(item!.suggestedAction, "blocked_existing");
+    assert.notEqual(item!.suggestedAction, "blocked_no_own_website");
+  });
+
+  it("a hospital/franchise/chain name still shows blocked_icp even with a social-profile website, not blocked_no_own_website", async () => {
+    const deps = buildDeps();
+    await seedCandidate(deps, {
+      rawName: "Hospital Instagram Only",
+      dedupeKey: "social-hospital-priority-1",
+      websiteUrl: "https://www.instagram.com/hospitalinstagramonly/",
+      normalizedWebsiteOrigin: "https://www.instagram.com",
+    });
+
+    const result = await listCandidatesForReview({}, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    const item = result.result.items.find((i) => i.rawName === "Hospital Instagram Only");
+    assert.ok(item);
+    assert.equal(item!.suggestedAction, "blocked_icp");
+    assert.notEqual(item!.suggestedAction, "blocked_no_own_website");
+  });
+
+  it("6. does not overreach: a candidate whose OWN website merely links to Instagram elsewhere is unaffected — only the primary website_url field matters", async () => {
+    const deps = buildDeps();
+    // The candidate's own websiteUrl/normalizedWebsiteOrigin is a real
+    // domain — whatever social links exist in crawled/extracted content
+    // (not modeled at the candidate stage at all) never factor in here.
+    await seedCandidate(deps, {
+      rawName: "Clínica Com Instagram Vinculado",
+      dedupeKey: "social-linked-not-primary-1",
+      websiteUrl: "https://clinicacominstagram.example.com.br/",
+      normalizedWebsiteOrigin: "https://clinicacominstagram.example.com.br",
+    });
+
+    const result = await listCandidatesForReview({}, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    const item = result.result.items.find((i) => i.rawName === "Clínica Com Instagram Vinculado");
+    assert.ok(item);
+    assert.equal(item!.suggestedAction, "promote_candidate");
+    assert.equal(item!.icpFit, "core");
+  });
+
+  it("14. JSON and Markdown output surface the new action stably", async () => {
+    const deps = buildDeps();
+    await seedCandidate(deps, {
+      rawName: "Clínica Render Check Instagram",
+      dedupeKey: "social-render-check-1",
+      websiteUrl: "https://www.instagram.com/rendercheck/",
+      normalizedWebsiteOrigin: "https://www.instagram.com",
+    });
+
+    const result = await listCandidatesForReview({}, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+
+    const roundTripped = JSON.parse(JSON.stringify(result.result)) as CandidateReviewResult;
+    assert.deepEqual(roundTripped, result.result);
+
+    const markdown = renderCandidateListMarkdown(result.result);
+    assert.match(markdown, /Bloqueado — website é perfil social\/mensageria, não domínio próprio/);
+  });
+});
+
 describe("candidate review CLI: production and target guards (shared infra, same gate as every other crawler CLI)", () => {
   it("11. the repository-selection gate refuses production regardless of --target", () => {
     const env: LeadCaptureEnv = {

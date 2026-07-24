@@ -78,6 +78,7 @@ Each candidate row includes:
 - `existing_clinic_id` (set only when `--include-existing` finds a different, already-existing clinic — either an exact dedupe-key match or a website-only match)
 - `existing_clinic_match_reason` (`"dedupe_key"` or `"normalized_website"` — explains which kind of match was found; null when `existing_clinic_id` is null)
 - `blockers` — human-readable reasons this candidate isn't a clean promote
+- `organization_type`, `icp_fit`, `decision_complexity`, `icp_reasons`, `icp_blockers` — ICP (Ideal Customer Profile) classification, always computed even for candidates already blocked for another reason. See `docs/technical/crawler-icp-classification.md` and `docs/technical/crawler-social-profile-website-classification.md`.
 - `suggested_action` — see below
 
 No secret ever appears in output: no `SUPABASE_SERVICE_ROLE_KEY`, no
@@ -96,8 +97,11 @@ Exactly one action is chosen per candidate, first matching rule wins:
 4. No `websiteUrl` → **`blocked_no_website`**.
 5. Website is a known third-party directory/aggregator (same allowlist prioritization uses — `isDirectoryListing` in `lib/operations/prioritization/prioritize-prospects.ts`) → **`blocked_directory`**.
 6. `--include-existing` found a different, already-existing clinic — exact dedupe-key match, or a website-only match (http/https treated as the same site — see `docs/technical/crawler-website-dedupe-normalization.md`) → **`blocked_existing`**.
-7. `status === "needs_review"` → **`manual_review`**.
-8. Otherwise (status `new`, has its own website, not a directory, no existing conflict) → **`promote_candidate`**.
+7. ICP fit is `blocked` (wrong-audience, non-directory), `poor` (franchise unit), or `future_enterprise` (hospital, clinic chain) — see `docs/technical/crawler-icp-classification.md` → **`blocked_icp`**.
+8. Website resolves to a known social-media/messaging/link-in-bio platform (Instagram, Facebook, WhatsApp, Linktree, etc.) as the *primary* `website_url` — see `docs/technical/crawler-social-profile-website-classification.md` → **`blocked_no_own_website`**.
+9. ICP fit is `maybe` (solo practitioner, or a weak/ambiguous name signal) → **`manual_review`**.
+10. `status === "needs_review"` → **`manual_review`**.
+11. Otherwise (status `new`, has its own real website, not a directory, not a social profile, ICP fit `core`, no existing conflict) → **`promote_candidate`**.
 
 Only candidates ending in `promote_candidate` are safe to hand to
 `npm run crawler:promote -- --target staging --candidate-id <id>`.

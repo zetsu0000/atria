@@ -588,6 +588,89 @@ describe("buildCommercialTemplatePack: ICP classification (docs/technical/crawle
   });
 });
 
+describe("buildCommercialTemplatePack: social-profile website classification (docs/technical/crawler-social-profile-website-classification.md)", () => {
+  async function seedHighTierClinicNamed(
+    deps: ReturnType<typeof buildDeps>,
+    dedupeKey: string,
+    displayName: string,
+    websiteUrl: string,
+    normalizedWebsiteOrigin: string,
+  ) {
+    const clinic = await deps.clinicRepo.createClinic({
+      displayName,
+      normalizedName: displayName.toLowerCase(),
+      websiteUrl,
+      normalizedWebsiteOrigin,
+      city: "São Paulo",
+      state: "SP",
+      specialty: "skin_care_clinic",
+      status: "prospect",
+      sourceType: "google_places",
+      sourceAttribution: {},
+      dedupeKey,
+    });
+    if (!clinic.ok) throw new Error("setup failed");
+    const crawlJob = await seedCrawlJobCompleted(deps, clinic.value.id);
+    await seedScreenshot(deps, crawlJob.id);
+    await seedScore(deps, clinic.value.id, 70);
+    await seedContact(deps, clinic.value.id);
+    return clinic.value;
+  }
+
+  it("11. commercial templates are withheld for an Instagram-only 'website', even with maximal (high-tier-shaped) evidence", async () => {
+    const deps = buildDeps();
+    const clinic = await seedHighTierClinicNamed(
+      deps,
+      "social-instagram-template",
+      "Clínica Dermatológica e Nutrição Lumina Pelle",
+      "https://www.instagram.com/luminapelle/",
+      "https://www.instagram.com",
+    );
+
+    const result = await buildCommercialTemplatePack({ clinicId: clinic.id }, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.pack.whatsapp.available, false);
+    assert.equal(result.pack.email.available, false);
+    assert.match(result.pack.blockedReason ?? "", /perfil de rede social/i);
+  });
+
+  it("an explicitly approved review decision overrides the social-profile-website withhold, per the task's own escape hatch", async () => {
+    const deps = buildDeps();
+    const clinic = await seedHighTierClinicNamed(
+      deps,
+      "social-instagram-approved-override",
+      "Clínica Dermatológica e Nutrição Lumina Pelle",
+      "https://www.instagram.com/luminapelle/",
+      "https://www.instagram.com",
+    );
+    await seedDecision(deps, clinic.id, "approved");
+
+    const result = await buildCommercialTemplatePack({ clinicId: clinic.id }, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.pack.whatsapp.available, true);
+    assert.equal(result.pack.email.available, true);
+  });
+
+  it("a real own domain never triggers the social-profile withhold", async () => {
+    const deps = buildDeps();
+    const clinic = await seedHighTierClinicNamed(
+      deps,
+      "social-real-domain-template",
+      "Clínica Dra. Natália Segatti",
+      "https://nataliasegatti.example.com.br/",
+      "https://nataliasegatti.example.com.br",
+    );
+
+    const result = await buildCommercialTemplatePack({ clinicId: clinic.id }, deps);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.pack.whatsapp.available, true);
+    assert.equal(result.pack.email.available, true);
+  });
+});
+
 describe("buildCommercialTemplatePack: candidates and validation", () => {
   it("a not-yet-promoted candidate never produces copy, regardless of tier", async () => {
     const deps = buildDeps();

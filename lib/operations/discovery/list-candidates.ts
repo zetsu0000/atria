@@ -12,6 +12,7 @@ import type { ClinicRepository } from "@/lib/operations/repositories/clinic-repo
 import type { ClinicRecord, ProspectCandidateRecord, RepoErrorReason } from "@/lib/operations/repositories/types";
 import type { DiscoverySourceType } from "@/lib/discovery/types";
 import { normalizeWebsiteOrigin } from "@/lib/discovery/normalize";
+import { isSocialProfileWebsite } from "@/lib/discovery/social-profile-website";
 import { isDirectoryListing } from "@/lib/operations/prioritization/prioritize-prospects";
 import { classifyIcp, explainIcpReasonCode, extractGooglePlacesCategoryTypes } from "@/lib/operations/icp-classification/classify-icp";
 import type { IcpClassification } from "@/lib/operations/icp-classification/types";
@@ -158,6 +159,18 @@ function classifyCandidate(
     blockers.push(...icp.blockers.map(explainIcpReasonCode));
     return { blockers, suggestedAction: "blocked_icp", icp };
   }
+
+  // Social/profile/messaging website as the PRIMARY website_url (docs/
+  // technical/crawler-social-profile-website-classification.md) — checked
+  // here so a hospital/franchise/chain/wrong-audience classification
+  // above (already worse) always wins over this more specific action.
+  // Not a directory (already handled above), so this only fires for a
+  // candidate whose only "website" is a social/messaging profile.
+  if (isSocialProfileWebsite(candidate.normalizedWebsiteOrigin)) {
+    blockers.push(...icp.blockers.map(explainIcpReasonCode));
+    return { blockers, suggestedAction: "blocked_no_own_website", icp };
+  }
+
   if (icp.icpFit === "maybe") {
     blockers.push(...icp.blockers.map(explainIcpReasonCode));
     return { blockers, suggestedAction: "manual_review", icp };

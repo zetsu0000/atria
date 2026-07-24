@@ -14,6 +14,7 @@ const ACTION_LABEL_PT: Record<CandidateReviewItem["suggestedAction"], string> = 
   blocked_no_website: "Bloqueado — sem website",
   blocked_existing: "Bloqueado — já existe no sistema",
   blocked_icp: "Bloqueado — perfil (ICP) não é foco do MVP",
+  blocked_no_own_website: "Bloqueado — website é perfil social/mensageria, não domínio próprio",
 };
 
 function renderItem(item: CandidateReviewItem, index: number): string {

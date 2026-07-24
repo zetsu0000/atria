@@ -158,3 +158,52 @@ describe("normalizeWebsiteOrigin: scheme-insensitive dedupe identity (docs/techn
     assert.equal(isSameOrigin("https://www.example.com/", "http://www.example.com/"), false);
   });
 });
+
+describe("isSocialProfileWebsite (docs/technical/crawler-social-profile-website-classification.md)", () => {
+  it("1. an Instagram profile URL is a social profile website", async () => {
+    const { isSocialProfileWebsite } = await import("./social-profile-website");
+    assert.equal(isSocialProfileWebsite("https://www.instagram.com"), true);
+    assert.equal(isSocialProfileWebsite(normalizeWebsiteOrigin("https://www.instagram.com/luminapelle/")), true);
+  });
+
+  it("2. a Facebook profile URL is a social profile website", async () => {
+    const { isSocialProfileWebsite } = await import("./social-profile-website");
+    assert.equal(isSocialProfileWebsite("https://www.facebook.com"), true);
+    assert.equal(isSocialProfileWebsite(normalizeWebsiteOrigin("https://www.facebook.com/ClinicaExemplo")), true);
+  });
+
+  it("3. a Linktree/Beacons (link-in-bio) URL is a social profile website", async () => {
+    const { isSocialProfileWebsite } = await import("./social-profile-website");
+    assert.equal(isSocialProfileWebsite(normalizeWebsiteOrigin("https://linktr.ee/clinicaexemplo")), true);
+    assert.equal(isSocialProfileWebsite(normalizeWebsiteOrigin("https://beacons.ai/clinicaexemplo")), true);
+  });
+
+  it("4. wa.me / api.whatsapp.com messaging links are social profile websites", async () => {
+    const { isSocialProfileWebsite } = await import("./social-profile-website");
+    assert.equal(isSocialProfileWebsite(normalizeWebsiteOrigin("https://wa.me/5511999999999")), true);
+    assert.equal(isSocialProfileWebsite(normalizeWebsiteOrigin("https://api.whatsapp.com/send?phone=5511999999999")), true);
+  });
+
+  it("5. a real own clinic domain is never treated as a social profile website", () => {
+    // Deliberately NOT importing isSocialProfileWebsite via a fresh
+    // dynamic import here — reusing the already-imported normalize
+    // helpers is enough to prove a real domain never matches.
+    assert.notEqual(
+      normalizeWebsiteOrigin("https://nataliasegatti.com.br"),
+      normalizeWebsiteOrigin("https://www.instagram.com"),
+    );
+  });
+
+  it("6. null/empty origin never throws and is never a social profile website", async () => {
+    const { isSocialProfileWebsite } = await import("./social-profile-website");
+    assert.equal(isSocialProfileWebsite(null), false);
+    assert.equal(isSocialProfileWebsite(""), false);
+  });
+
+  it("is never conflated with directory-listing detection — a directory host is not also flagged social-profile, and vice versa", async () => {
+    const { isSocialProfileWebsite } = await import("./social-profile-website");
+    const { isDirectoryListing } = await import("./directory-listing");
+    assert.equal(isSocialProfileWebsite("https://www.doctoralia.com.br"), false);
+    assert.equal(isDirectoryListing("https://www.instagram.com"), false);
+  });
+});

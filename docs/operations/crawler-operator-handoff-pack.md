@@ -115,9 +115,11 @@ npx tsx scripts/crawler/list-candidates.ts \
 
 Read-only, never crawls, never calls Google Places, never promotes. Lists
 each candidate with its status, obvious blockers (no website, directory
-listing, already-existing/duplicate), an ICP (Ideal Customer Profile)
-classification (hospital/franchise/chain/wrong-audience businesses are
-never a clean `promote_candidate` — see
+listing, already-existing/duplicate, a social-media/messaging profile
+like Instagram/WhatsApp used as the primary website — see
+`docs/technical/crawler-social-profile-website-classification.md`), an
+ICP (Ideal Customer Profile) classification (hospital/franchise/chain/
+wrong-audience businesses are never a clean `promote_candidate` — see
 `docs/technical/crawler-icp-classification.md`), and a suggested action —
 pick one `<CANDIDATE_ID>` whose suggested action is `promote_candidate`.
 See `docs/technical/crawler-candidate-review-cli.md` for the full flag

@@ -339,3 +339,18 @@ review decision and a gate-checked, ready-to-manually-send draft.
 2. Consider a distinct `riskFlags` severity/code for "channel has no persisted draft" vs. "channel blocked by approval gate" in `generate-manual-outreach-pack.ts`, closing Limitation 4.
 3. Since this run reached a genuine `approved` decision with a real, gate-checked, ready-to-send email draft, the next logical step (still entirely manual, still no system send) would be for a human operator to actually review and manually send this specific draft outside the system, then log `manual_send_logged` — the first real end-to-end commercial use of this pipeline, if the business decides to proceed.
 4. Consider generating a WhatsApp draft explicitly (not just relying on the crawl pipeline's default email-only draft creation) for clinics where a real WhatsApp number was found in `extractedContentSummary.contacts`, so `generate-manual-outreach-pack.ts` doesn't report `partial_blocked` for a channel that's genuinely available, just never drafted.
+
+## Follow-up (2026-07-24)
+
+**Limitation 1 is fixed.** See
+`docs/technical/crawler-social-profile-website-classification.md`.
+`isSocialProfileWebsite` (Instagram, Facebook, WhatsApp, Linktree,
+Beacons, etc.) now caps ICP fit at `maybe` and maps the candidate review
+CLI's suggested action to the new `blocked_no_own_website` value, instead
+of a clean `promote_candidate`. Commercial templates are also explicitly
+withheld for a social-profile-website clinic unless a human review
+decision explicitly approves it. Re-running this exact scenario against
+the same discovery job (`c04f4961-57ff-47dd-8ebf-b4dd12dd863c`) now
+correctly shows "Clínica Dermatológica e Nutrição Lumina Pelle" as
+`blocked_no_own_website` (`icpFit: "maybe"`) — confirmed read-only, no
+staging row mutated. Limitations 2, 3, and 4 remain open.

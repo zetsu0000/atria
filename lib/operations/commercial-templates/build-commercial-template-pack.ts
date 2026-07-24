@@ -44,6 +44,7 @@ import type { ScoreRepository } from "@/lib/operations/repositories/score-reposi
 import type { HumanReviewRepository } from "@/lib/operations/repositories/human-review-repository";
 import type { ManualOutreachLogRepository } from "@/lib/operations/repositories/manual-outreach-log-repository";
 import type { RepoErrorReason } from "@/lib/operations/repositories/types";
+import { isSocialProfileWebsite } from "@/lib/discovery/social-profile-website";
 import { prioritizeClinic, prioritizeCandidate } from "@/lib/operations/prioritization/prioritize-prospects";
 import type { PrioritizedProspect, PriorityTier, SuggestedNextAction } from "@/lib/operations/prioritization/types";
 import { SCORE_DISCLAIMER } from "@/lib/score/calculate";
@@ -265,6 +266,19 @@ export async function buildCommercialTemplatePack(
   // strong technical score can never push either into MVP-ready copy —
   // matching how directory listings are already checked explicitly above.
   const isFutureEnterpriseOrPoorIcp = prioritized.icp.icpFit === "future_enterprise" || prioritized.icp.icpFit === "poor";
+  // Social/profile/messaging website (docs/technical/crawler-social-profile-website-classification.md):
+  // Instagram/Facebook/WhatsApp/link-in-bio as the primary website_url is
+  // not a real own domain — checked explicitly, defense-in-depth on top
+  // of the icpFit "maybe" cap prioritizeClinic/prioritizeCandidate
+  // already applies, same reasoning as the directory-listing check above.
+  // Overridable: a human reviewer who has explicitly approved this
+  // clinic (having seen and accepted that its only "website" is a social
+  // profile) may still see copy — this is the one soft-withhold in this
+  // module with an explicit human override, per the task's own spec
+  // ("withheld unless a real own website exists and review explicitly
+  // approves").
+  const hasSocialProfileWebsite = isSocialProfileWebsite(prioritized.normalizedWebsiteOrigin);
+  const isApproved = prioritized.facts.latestReviewDecision === "approved";
 
   let whatsapp: CommercialCopySection;
   let email: CommercialCopySection;
@@ -289,6 +303,12 @@ export async function buildCommercialTemplatePack(
     email = unavailableCopy("email", reason);
     blockedReason = null;
     warnings.push(reason);
+  } else if (hasSocialProfileWebsite && !isApproved) {
+    const reason =
+      "O website informado é um perfil de rede social/mensageria (ex.: Instagram, Facebook, WhatsApp), não um domínio próprio da clínica — nenhuma copy de outreach é gerada até que exista um site próprio real ou uma revisão humana aprove explicitamente.";
+    whatsapp = unavailableCopy("whatsapp_manual", reason);
+    email = unavailableCopy("email", reason);
+    blockedReason = reason;
   } else if (prioritized.priorityTier === "blocked") {
     const reason = prioritized.blockers.length > 0 ? prioritized.blockers.join(" ") : "Prioridade bloqueada.";
     whatsapp = unavailableCopy("whatsapp_manual", "Prospect bloqueado — nenhuma copy externa é gerada. Ver blockedReason.");

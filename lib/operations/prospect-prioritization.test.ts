@@ -415,6 +415,41 @@ describe("prioritizeProspects: ICP classification (docs/technical/crawler-icp-cl
   });
 });
 
+describe("prioritizeProspects: social-profile website classification (docs/technical/crawler-social-profile-website-classification.md)", () => {
+  it("10. a social-profile (Instagram) website_url lowers priority confidence — never ranks 'core' fit, and a maximally-evidenced example still ranks below an equally-evidenced real-domain clinic", async () => {
+    const deps = buildDeps();
+    const instagramClinic = await seedClinic(deps, "social-instagram-priority", {
+      displayName: "Clínica Dermatológica e Nutrição Lumina Pelle",
+      websiteUrl: "https://www.instagram.com/luminapelle/",
+      normalizedWebsiteOrigin: "https://www.instagram.com",
+    });
+    const realDomainClinic = await seedClinic(deps, "social-real-domain-priority", {
+      displayName: "Clínica Dra. Natália Segatti",
+      websiteUrl: "https://nataliasegatti.example.com.br/",
+      normalizedWebsiteOrigin: "https://nataliasegatti.example.com.br",
+    });
+
+    // Give both clinics identical, maximally-favorable non-website evidence.
+    for (const clinic of [instagramClinic, realDomainClinic]) {
+      const crawlJob = await seedCrawlJob(deps, clinic.id, { status: "completed" });
+      await seedScreenshot(deps, crawlJob.id);
+      await seedScore(deps, clinic.id, 70);
+      await seedContact(deps, clinic.id);
+    }
+
+    const result = await prioritizeProspects({}, deps);
+    const instagramItem = result.items.find((i) => i.id === instagramClinic.id)!;
+    const realDomainItem = result.items.find((i) => i.id === realDomainClinic.id)!;
+
+    assert.equal(instagramItem.icp.icpFit, "maybe");
+    assert.notEqual(instagramItem.icp.icpFit, "core");
+    assert.ok(
+      instagramItem.priorityScore < realDomainItem.priorityScore,
+      "an Instagram-only 'website' must rank below an equally-evidenced clinic with a real own domain",
+    );
+  });
+});
+
 describe("prioritizeProspects: production is refused", () => {
   it("9. the shared repository-selection gate refuses production regardless of --target", () => {
     const env: LeadCaptureEnv = {

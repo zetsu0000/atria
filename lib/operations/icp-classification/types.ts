@@ -36,6 +36,8 @@ export type IcpReasonCode =
   | "directory_listing"
   | "wrong_audience"
   | "no_own_website"
+  /** website_url is a social-media/link-in-bio/messaging profile (Instagram, Facebook, WhatsApp, Linktree, etc.), not a real own domain — see docs/technical/crawler-social-profile-website-classification.md. Distinct from "no_own_website" (which means no URL at all). */
+  | "social_profile_website"
   | "duplicate_existing"
   | "unclear_icp"
   | "likely_core_icp"
