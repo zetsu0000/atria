@@ -209,9 +209,9 @@ The current MVP priority is:
 3. Mocked clinic preview page.
 4. Mocked score.
 5. Before/after visual preview.
-6. No crawler yet.
-7. No Supabase yet.
-8. No authentication yet.
+6. Crawler, Supabase, and authentication already exist technically and must be preserved.
+7. These systems are not part of the automatic commercial flow in the current MVP.
+8. Do not recreate, remove, simplify, or expand this infrastructure unless explicitly requested.
 9. No payments yet.
 10. No AI generation yet.
 

@@ -1,50 +1,69 @@
-# Plano de divergência futura da Atria
+# Plano de divergência — Product design Atria
 
-Status: pós-paridade; **não executar nesta etapa**
+Status: **fase ativa** (pós-paridade)
+Atualizado: 2026-07-24
+Toolchain: taste-skill · emilkowalski/skills · Figma · Playwright · Impeccable
+Higgsfield: **retirado**
 
-## O que foi reconstruído da referência
+## Baseline preservado
 
-A reconstrução usa somente a gramática observável da experiência:
+Da paridade interna (`atria-konpo-parity-review.md`):
 
-- trilho lateral e header horizontal fixos;
-- proporção da dobra, display central e mídia entrando no primeiro viewport;
-- menu de tela inteira com uma região dominante e quatro mundos;
-- alternância de fundos claros/escuros e escala tipográfica extrema;
-- capítulos longos e stacking sticky;
-- região de trabalho monumental;
+- trilho + header fixos, menu imersivo acessível;
+- escala tipográfica e uso de viewport;
 - índices contínuos no lugar de cards;
-- fechamento tipográfico de grande escala;
-- comportamento responsivo que recompõe, em vez de apenas empilhar.
+- comparador Atual/Proposta;
+- formulário local honesto;
+- reduced motion e contraste medidos;
+- conteúdo Preview-First e Clínica Aurora contida.
 
-Não foram reutilizados código, assets, fontes proprietárias, vídeos, imagens, logos, textos, ícones pontilhados ou nomes de projetos da Konpo.
+## O que já é Atria (reforçar)
 
-## O que já pertence à Atria
-
-- promessa canônica e toda a arquitetura de mensagem;
-- accent vermelho-terra e sistema cromático frio;
-- mecanismo `Atual → Proposta → Aprovado`;
-- regra visual do Threshold;
+- promessa canônica;
+- accent vermelho-terra + Threshold;
 - método em cinco capítulos;
-- compromissos de aprovação e transição técnica;
-- demonstração fictícia Clínica Aurora, contida no preview;
-- comparador acessível e formulário local honesto;
-- artefatos DOM/CSS originais, sem estética clínica ou hospitalar.
+- compromissos de aprovação;
+- artefatos DOM/CSS originais (como fallback).
 
-## Divergências recomendadas depois da aprovação
+## Backlog de product design (prioridade)
 
-1. **Sistema tipográfico proprietário.** Avaliar uma família licenciada com desenho editorial mais distinto, preservando métricas de reflow.
-2. **Motion Threshold original.** Produzir loops próprios quando houver créditos/ferramenta, seguindo os prompts do plano de mídia e mantendo posters/reduced motion.
-3. **Assinatura geométrica Atria.** Evoluir o intervalo vertical e o checkpoint de aprovação para um sistema de marca reconhecível, sem copiar o ícone matricial da referência.
-4. **Compressão narrativa mobile.** Testar uma edição mais curta da tese e dos compromissos; não esconder responsabilidades, riscos ou aviso de não envio.
-5. **Prova verdadeira.** Incluir casos, clientes ou métricas apenas quando existirem autorização e evidência verificável.
-6. **Fluxo conectado.** Conectar o formulário somente em tarefa própria, com decisão explícita sobre destino, privacidade, retenção e consentimento.
-7. **Conteúdo modular.** Extrair capítulos para um modelo editorial apenas quando a landing estabilizar; não introduzir CMS por antecipação.
+1. **Retirar scaffolding de paridade / AI tells**
+   - rationar `section-index` numerado (`01`…);
+   - remover em-dashes da copy de UI;
+   - hero stack ≤ 4 elementos de texto (taste-skill).
 
-## Critérios para a próxima fase
+2. **Mídia própria sem Higgsfield**
+   - Figma → `public/atria-media/`;
+   - Threshold loop + approval sequence;
+   - DOM de capítulos vira fallback, não destino.
 
-- aprovação explícita da direção visual atual;
-- teste de compreensão com donos, médicos ou gestores de clínicas;
-- decisão sobre o comprimento mobile;
-- orçamento/licença para tipografia e mídia;
-- política definida para dados do formulário;
-- nenhuma expansão para crawler, Supabase, autenticação, pagamentos ou publicação sem tarefa separada.
+3. **Motion Emil**
+   - auditar com `review-animations`;
+   - ease-out custom; sem `transition: all`; sem animar ações frequentes demais;
+   - `find-animation-opportunities` com viés de restrição.
+
+4. **Compressão mobile**
+   - reduzir altura (~20k px) sem esconder responsabilidades;
+   - revalidar 390/320 no Playwright.
+
+5. **Assinatura geométrica Threshold**
+   - sistema reconhecível no Figma (intervalo + checkpoint);
+   - aplicar com parcimônia (DESIGN.md §6.3).
+
+6. **Tipografia**
+   - avaliar família licenciada só com orçamento; Hanken Grotesk permanece até lá.
+
+7. **Prova verdadeira**
+   - casos/clientes/métricas só com autorização real.
+
+8. **Playwright como gate**
+   - screenshots em 1440/1024/768/390 para `/` e `/previa/clinica-aurora` a cada lote visual.
+
+## Critérios de conclusão da fase
+
+- DESIGN.md (versão ativa no próprio documento) seguido;
+- zero dependência Higgsfield na docs e no código;
+- Figma Atria com frames das seções críticas;
+- Playwright suite mínima documentada;
+- taste-skill preflight passando nos itens de copy/eyebrow/hero;
+- aprovação explícita antes de tratar como versão pública.
